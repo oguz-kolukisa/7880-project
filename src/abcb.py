@@ -159,7 +159,7 @@ class SoftHistogram(nn.Module):
         edges = torch.linspace(0.0, 1.0, L + 1)
         centers = 0.5 * (edges[:-1] + edges[1:])
         self.register_buffer("centers", centers)
-        self.width = 1.0 / L
+        self.width = 0.5 / L
 
     def forward(self, a: torch.Tensor) -> torch.Tensor:
         a = a.clamp(0.0, 1.0).unsqueeze(-1)
@@ -401,12 +401,50 @@ class ResNetBackbone(nn.Module):
         self.layer4 = m.layer4
         self.out_channels = [512, 1024, 2048]
 
+    @staticmethod
+    def _forward_last_bottleneck_pre_relu(
+        block: nn.Module, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        identity = x
+        out = block.conv1(x)
+        out = block.bn1(out)
+        out = block.relu(out)
+
+        out = block.conv2(out)
+        out = block.bn2(out)
+        out = block.relu(out)
+
+        out = block.conv3(out)
+        out = block.bn3(out)
+
+        if block.downsample is not None:
+            identity = block.downsample(x)
+
+        out = out + identity
+        pre_relu = out
+        out = block.relu(out)
+        return out, pre_relu
+
+    def _forward_layer_with_pre_relu(
+        self, layer: nn.Sequential, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        pre_relu = None
+        last_idx = len(layer) - 1
+        for idx, block in enumerate(layer):
+            if idx == last_idx:
+                x, pre_relu = self._forward_last_bottleneck_pre_relu(block, x)
+            else:
+                x = block(x)
+        if pre_relu is None:
+            pre_relu = x
+        return x, pre_relu
+
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.stem(x)
         x = self.layer1(x)
-        f3 = self.layer2(x)
-        f4 = self.layer3(f3)
-        f5 = self.layer4(f4)
+        x, f3 = self._forward_layer_with_pre_relu(self.layer2, x)
+        x, f4 = self._forward_layer_with_pre_relu(self.layer3, x)
+        _, f5 = self._forward_layer_with_pre_relu(self.layer4, x)
         return f3, f4, f5
 
 
@@ -465,7 +503,6 @@ class ABCB(nn.Module):
         use_correlation: bool = True,
         normalize_imagenet: bool = True,
         freeze_backbone: bool = True,
-        correlation_mode: str = "dense_corr",
         corr_attn_heads: int = 4,
     ):
         super().__init__()
@@ -473,7 +510,6 @@ class ABCB(nn.Module):
         self.max_support_tokens = max_support_tokens
         self.normalize_imagenet = normalize_imagenet
         self.freeze_backbone = freeze_backbone
-        self.correlation_mode = correlation_mode
 
         backbone_name = backbone_name.lower()
         if backbone_name == "resnet50":
@@ -491,7 +527,7 @@ class ABCB(nn.Module):
         self.SM = SupportModulation(C=dim, evo=self.evo, num_heads=num_heads, max_bg_tokens=max_bg_tokens)
         self.IC = InformationCleansing(C=dim, num_heads=num_heads)
         self.use_correlation = use_correlation
-        per_level_channels = 2 if self.correlation_mode in {"dense_corr", "hsnet", "hdmnet"} else 1
+        per_level_channels = 2
         corr_channels = per_level_channels * len(self.proj_levels)
         self.corr_fuse = CorrelationFusion(dim, corr_channels=corr_channels) if use_correlation else None
         self.corr_attn = SelfAttentionBlock(dim, num_heads=corr_attn_heads)
@@ -530,22 +566,6 @@ class ABCB(nn.Module):
         return masked.sum(dim=1) / denom
 
     def _dense_correlation_map(
-        self,
-        f_q: torch.Tensor,
-        f_s: torch.Tensor,
-        eps: float = 1e-6,
-    ) -> torch.Tensor:
-        B, C, Hq, Wq = f_q.shape
-        _, _, Hs, Ws = f_s.shape
-        f_q_n = F.normalize(f_q, dim=1, eps=eps).flatten(2)
-        f_s_n = F.normalize(f_s, dim=1, eps=eps).flatten(2)
-        corr = torch.einsum("bch,bck->bhk", f_q_n, f_s_n).relu()
-        corr = corr.view(B, Hq, Wq, Hs, Ws)
-        corr_mean = corr.mean(dim=(3, 4))
-        corr_max = corr.amax(dim=(3, 4))
-        return torch.stack([corr_mean, corr_max], dim=1)
-
-    def _hsnet_correlation_map(
         self,
         f_q: torch.Tensor,
         f_s: torch.Tensor,
@@ -609,25 +629,8 @@ class ABCB(nn.Module):
         if self.use_correlation:
             corr_maps: List[torch.Tensor] = []
             for fq_level, fs_level in zip(q_proj_levels, s_proj_levels):
-                if self.correlation_mode == "dense_corr":
-                    support_feats = self._masked_support_features(fs_level, support_mask)
-                    corr = self._dense_correlation_map(fq_level, support_feats)
-                elif self.correlation_mode == "hsnet":
-                    support_feats = self._masked_support_features(fs_level, support_mask)
-                    corr = self._hsnet_correlation_map(fq_level, support_feats)
-                elif self.correlation_mode == "hdmnet":
-                    support_feats = self._masked_support_features(fs_level, support_mask)
-                    corr = self._hdmnet_correlation_map(fq_level, support_feats)
-                elif self.correlation_mode == "prototype":
-                    support_proto = build_S_QP_from_support(
-                        fs_level,
-                        support_mask,
-                        max_support_tokens=self.max_support_tokens,
-                    )[0].mean(dim=1)
-                    proto = support_proto.view(B, -1, 1, 1)
-                    corr = F.cosine_similarity(fq_level, proto, dim=1, eps=1e-6).unsqueeze(1)
-                else:
-                    raise ValueError(f"Unsupported correlation_mode: {self.correlation_mode}")
+                support_feats = self._masked_support_features(fs_level, support_mask)
+                corr = self._hdmnet_correlation_map(fq_level, support_feats)
 
                 corr = F.interpolate(corr, size=f_q.shape[-2:], mode="bilinear", align_corners=False)
                 corr_maps.append(corr)
