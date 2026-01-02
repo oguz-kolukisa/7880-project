@@ -18,6 +18,21 @@ The key contributions are:
 
 ---
 
+# 1.2. Paper implementation checklist (pending exact verification)
+
+> **Note:** The CVPR paper PDF/HTML could not be accessed from this environment (403 responses). As a result, the exact implementation details in the paper **could not be verified line-by-line**. Please provide the paper PDF (or a local copy) so this checklist can be completed with precise citations and confirmations.
+
+| Area | Paper detail | Repo status | Notes |
+| --- | --- | --- | --- |
+| Backbone and feature dims | **Unknown here** | **Partially implemented** | Current code uses ResNet-50 + 256-dim projection. Needs verification against paper. |
+| Iteration count (T) | **Unknown here** | **Implemented** | Current default is `T=3`; needs confirmation. |
+| Query Prediction (QP) | **Unknown here** | **Implemented** | Uses 1x1 conv → ReLU → 1x1 conv on concatenated prototype + query features. |
+| Support Modulation (SM) | **Unknown here** | **Implemented** | Uses multi-head attention as in repo; verify against paper. |
+| Information Cleansing (IC) | **Unknown here** | **Implemented** | Confidence-biased attention; verify exact equations/normalization. |
+| Training augmentations | **Unknown here** | **Partially implemented** | Repo uses random scale (0.5–2.0), flip, crop 473. Needs verification. |
+| Optimization | **Unknown here** | **Implemented** | SGD, poly LR, momentum, weight decay; confirm exact values. |
+| Datasets (PASCAL-5ᵢ / COCO-20ᵢ) | **Unknown here** | **PASCAL-5ᵢ implemented** | COCO-20ᵢ implementation needs confirmation vs paper protocol. |
+
 # 2. The method and my interpretation
 
 ## 2.1. The original method

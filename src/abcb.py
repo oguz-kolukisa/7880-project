@@ -388,6 +388,44 @@ class ResNet50Backbone(nn.Module):
         return self.backbone(x)
 
 
+class ResNet101Backbone(nn.Module):
+    """Torchvision ResNet-101 truncated before the classification head."""
+
+    def __init__(self, pretrained: bool = True):
+        super().__init__()
+        from torchvision.models import resnet101
+        try:
+            from torchvision.models import ResNet101_Weights
+            weights = ResNet101_Weights.IMAGENET1K_V2 if pretrained else None
+            m = resnet101(weights=weights)
+        except Exception:
+            m = resnet101(pretrained=pretrained)
+
+        self.backbone = nn.Sequential(*list(m.children())[:-2])
+        self.out_channels = 2048
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.backbone(x)
+
+
+class CorrelationFusion(nn.Module):
+    """Fuse support/query features using a lightweight correlation cue."""
+
+    def __init__(self, C: int):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(C + 1, C, kernel_size=1),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, f_q: torch.Tensor, support_proto: torch.Tensor) -> torch.Tensor:
+        B, C, H, W = f_q.shape
+        proto = support_proto.view(B, C, 1, 1).expand(B, C, H, W)
+        corr = F.cosine_similarity(f_q, proto, dim=1, eps=1e-6).unsqueeze(1)
+        fused = torch.cat([f_q, corr], dim=1)
+        return self.conv(fused)
+
+
 class ABCB(nn.Module):
     """Full iterative ABCB segmentation model."""
 
@@ -395,12 +433,14 @@ class ABCB(nn.Module):
         self,
         dim: int = 256,
         T: int = 3,
+        backbone_name: str = "resnet50",
         pretrained_backbone: bool = True,
         num_heads: int = 4,
         L_hist: int = 16,
         max_support_tokens: int = 1024,
         max_fg_tokens: int = 512,
         max_bg_tokens: int = 512,
+        use_correlation: bool = True,
         normalize_imagenet: bool = True,
     ):
         super().__init__()
@@ -408,13 +448,21 @@ class ABCB(nn.Module):
         self.max_support_tokens = max_support_tokens
         self.normalize_imagenet = normalize_imagenet
 
-        self.backbone = ResNet50Backbone(pretrained=pretrained_backbone)
+        backbone_name = backbone_name.lower()
+        if backbone_name == "resnet50":
+            self.backbone = ResNet50Backbone(pretrained=pretrained_backbone)
+        elif backbone_name == "resnet101":
+            self.backbone = ResNet101Backbone(pretrained=pretrained_backbone)
+        else:
+            raise ValueError(f"Unsupported backbone_name: {backbone_name}")
         self.proj = nn.Conv2d(self.backbone.out_channels, dim, kernel_size=1)
 
         self.QP = QueryPrediction(C=dim, num_classes=2)
         self.evo = EvolutionFeature(C=dim, L=L_hist, max_fg_tokens=max_fg_tokens)
         self.SM = SupportModulation(C=dim, evo=self.evo, num_heads=num_heads, max_bg_tokens=max_bg_tokens)
         self.IC = InformationCleansing(C=dim, num_heads=num_heads)
+        self.use_correlation = use_correlation
+        self.corr_fuse = CorrelationFusion(dim) if use_correlation else None
 
         mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
@@ -445,6 +493,12 @@ class ABCB(nn.Module):
         f_s = self.proj(self.backbone(support_in.view(B * K, 3, Hq, Wq))).view(
             B, K, -1, f_q.shape[-2], f_q.shape[-1]
         )
+
+        if self.use_correlation:
+            support_proto = build_S_QP_from_support(f_s, support_mask, max_support_tokens=self.max_support_tokens)[
+                0
+            ].mean(dim=1)
+            f_q = self.corr_fuse(f_q, support_proto)
 
         S_QP, S_QP_pad = build_S_QP_from_support(f_s, support_mask, max_support_tokens=self.max_support_tokens)
 
@@ -489,4 +543,3 @@ class ABCB(nn.Module):
             }
         )
         return out
-
