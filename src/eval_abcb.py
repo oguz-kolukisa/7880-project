@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from src.abcb import ABCB
 from src.coco20i import Coco20iDataset
@@ -46,7 +47,8 @@ def evaluate_fold(
 ) -> float:
     model.eval()
     iou_sum, n = 0.0, 0
-    for batch in dataloader:
+    eval_pbar = tqdm(dataloader, desc="Eval", leave=False, dynamic_ncols=True)
+    for batch in eval_pbar:
         support_img, support_mask, query_img, query_mask = unpack_episode(batch)
         support_img = support_img.to(device, non_blocking=True)
         support_mask = support_mask.to(device, non_blocking=True)
@@ -62,6 +64,7 @@ def evaluate_fold(
         iou = binary_miou_from_logits(out["logits"], query_mask)
         iou_sum += iou * query_img.shape[0]
         n += query_img.shape[0]
+        eval_pbar.set_postfix(iou=f"{iou:.4f}")
     return iou_sum / max(1, n)
 
 
@@ -77,7 +80,8 @@ def evaluate_all_folds(
     seed: int,
 ) -> Dict[int, float]:
     fold_scores: Dict[int, float] = {}
-    for fold in range(4):
+    fold_pbar = tqdm(range(4), desc="Folds", dynamic_ncols=True)
+    for fold in fold_pbar:
         dataset = build_dataset(dataset_name, data_root, fold, episodes, seed)
         dataloader = DataLoader(
             dataset,
@@ -94,6 +98,7 @@ def evaluate_all_folds(
         model = model.to(device)
 
         fold_scores[fold] = evaluate_fold(model, dataloader, device)
+        fold_pbar.set_postfix(fold=fold, miou=f"{fold_scores[fold]:.4f}")
     return fold_scores
 
 
