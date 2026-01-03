@@ -145,7 +145,7 @@ def main() -> None:
             "train_episodes": 20000,
             "val_episodes": 2000,
             "epochs": 250,
-            "batch_size": 16,
+            "batch_size": 256,
             "base_lr": 0.002,
             "crop_size": 473,
             "num_workers": 4,
