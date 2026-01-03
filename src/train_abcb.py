@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 
 
@@ -209,6 +210,7 @@ def train_abcb(
     max_steps: Optional[int] = None,
 ) -> Dict[str, List[float]]:
     model = model.to(device)
+    model = torch.compile(model, mode="reduce-overhead")  # Optimize with torch.compile
 
     train_loader = DataLoader(
         train_ds,
@@ -234,6 +236,7 @@ def train_abcb(
         weight_decay=weight_decay,
     )
 
+    scaler = GradScaler()  # For mixed precision (float16) training
     max_iter = epochs * len(train_loader)
     cur_iter = 0
 
@@ -289,16 +292,21 @@ def train_abcb(
 
             optimizer.zero_grad(set_to_none=True)
 
-            out = model(
-                query_img=query_img,
-                support_img=support_img,
-                support_mask=support_mask,
-                return_all=True,
-            )
+            # Float16 mixed precision training
+            with autocast(device_type="cuda" if "cuda" in device else "cpu", dtype=torch.float16):
+                out = model(
+                    query_img=query_img,
+                    support_img=support_img,
+                    support_mask=support_mask,
+                    return_all=True,
+                )
 
-            loss = abcb_loss(out["P_list"], out["Phat_list"], query_mask, lam=lam)
-            loss.backward()
-            optimizer.step()
+                loss = abcb_loss(out["P_list"], out["Phat_list"], query_mask, lam=lam)
+
+            # Backprop with gradient scaling
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             epoch_loss_sum += loss.item()
             cur_iter += 1
