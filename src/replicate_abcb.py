@@ -258,7 +258,8 @@ def main() -> None:
                             model = model.to(args.device)
                         else:
                             logging.info(f"Training {backbone} on {dataset} with {shots} shots, fold {fold}")
-                            train_abcb(
+                            metrics_path = fold_dir / "training_metrics.json"
+                            train_metrics = train_abcb(
                                 model=model,
                                 train_ds=fold_datasets["train"],
                                 val_ds=fold_datasets["val"],
@@ -268,6 +269,7 @@ def main() -> None:
                                 base_lr=hparams["base_lr"],
                                 crop_size=hparams["crop_size"],
                                 num_workers=hparams["num_workers"],
+                                save_path=str(metrics_path),
                                 max_steps=max_steps,
                             )
                             logging.info(f"Finished training {backbone} on {dataset} with {shots} shots, fold {fold}")

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
@@ -141,7 +144,7 @@ def train_abcb(
     lam: float = 0.2,
     crop_size: int = 473,
     num_workers: int = 4,
-    save_dir: Optional[str] = None,
+    save_path: Optional[str] = None,
     max_steps: Optional[int] = None,
 ) -> Dict[str, List[float]]:
     model = model.to(device)
@@ -285,7 +288,13 @@ def train_abcb(
 
         epoch_pbar.set_postfix(train_loss=f"{avg_train_loss:.4f}", val_iou=f"{val_iou:.4f}")
 
-    return {"epochs": epochs_log, "train_losses": train_losses_log, "val_ious": val_ious_log}
+    metrics = {"epochs": epochs_log, "train_losses": train_losses_log, "val_ious": val_ious_log}
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(save_path, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        logging.debug(f"Saved training metrics to {save_path}")
+    return metrics
 
 
 __all__ = [
