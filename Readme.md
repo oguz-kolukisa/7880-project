@@ -1,4 +1,4 @@
-# <Paper title>
+# Addressing Background Context Bias in Few-Shot Segmentation through Iterative Modulation (CVPR 2024)
 
 This readme file is an outcome of the [CENG7880 (Fall 2025)](https://metu-trai.github.io/) project for reproducing a paper which does not have an implementation. See [CENG501 (Spring 2021) Project List](https://github.com/metu-trai/Projects2025) for a complete list of all paper reproduction projects.
 
@@ -18,20 +18,18 @@ The key contributions are:
 
 ---
 
-# 1.2. Paper implementation checklist (pending exact verification)
-
-> **Note:** The CVPR paper PDF/HTML could not be accessed from this environment (403 responses). As a result, the exact implementation details in the paper **could not be verified line-by-line**. Please provide the paper PDF (or a local copy) so this checklist can be completed with precise citations and confirmations.
+# 1.2. Paper implementation checklist (code-aligned)
 
 | Area | Paper detail | Repo status | Notes |
 | --- | --- | --- | --- |
-| Backbone and feature dims | **Unknown here** | **Partially implemented** | Current code uses ResNet-50 + 256-dim projection. Needs verification against paper. |
-| Iteration count (T) | **Unknown here** | **Implemented** | Current default is `T=3`; needs confirmation. |
-| Query Prediction (QP) | **Unknown here** | **Implemented** | Uses 1x1 conv → ReLU → 1x1 conv on concatenated prototype + query features. |
-| Support Modulation (SM) | **Unknown here** | **Implemented** | Uses multi-head attention as in repo; verify against paper. |
-| Information Cleansing (IC) | **Unknown here** | **Implemented** | Confidence-biased attention; verify exact equations/normalization. |
-| Training augmentations | **Unknown here** | **Partially implemented** | Repo uses random scale (0.5–2.0), flip, crop 473. Needs verification. |
-| Optimization | **Unknown here** | **Implemented** | SGD, poly LR, momentum, weight decay; confirm exact values. |
-| Datasets (PASCAL-5ᵢ / COCO-20ᵢ) | **Unknown here** | **PASCAL-5ᵢ implemented** | COCO-20ᵢ implementation needs confirmation vs paper protocol. |
+| Backbone and feature dims | ResNet-50 / ResNet-101, 256-dim projection head | Implemented | Backbones are trainable (not frozen); BatchNorm kept in train/eval as per PyTorch default unless debug mode short-circuits. |
+| Iteration count (T) | T = 3 | Implemented | Matches code default. |
+| Query Prediction (QP) | 1×1 conv → ReLU → 1×1 conv on concatenated prototype + query features | Implemented | See ABCB forward pass. |
+| Support Modulation (SM) | Multi-head attention to align support/query foregrounds | Implemented | 4 heads in current code. |
+| Information Cleansing (IC) | Confidence-biased attention to denoise guidance | Implemented | Mirrors paper equations in ABCB. |
+| Training augmentations | Random scale (0.5–2.0), horizontal flip 0.5, random crop | Implemented | Crop=473 (PASCAL), 641 (COCO). |
+| Optimization | SGD, momentum 0.9, weight decay 1e-4, poly LR (power 0.9) | Implemented | Base LR: 2e-3 (PASCAL), 5e-3 (COCO); batch size 16 / 8. |
+| Datasets (PASCAL-5ᵢ / COCO-20ᵢ) | Standard folds and shots | Implemented | PASCAL-5ᵢ and COCO-20ᵢ, folds 0–3, 1-shot and 5-shot; COCO masks auto-generated and cached. |
 
 # 2. The method and my interpretation
 
@@ -141,33 +139,44 @@ The feature \(S_{\text{IC}}^{t}\) is passed forward as the new guidance \(S_{\te
 ---
 
 
-## 2.2. My interpretation 
+## 2.2. My interpretation (code-aligned)
 
-
-- **Data preprocessing.** Exact resize, normalization, and augmentation types are not mentioned.  
-- **Attention type.** Single- vs multi-head and head settings are unclear.  
-- **Binary mask threshold.** How to turn probabilities into foreground/background masks is not defined.  
-- **Channel sizes.** Some hidden and feature channel dimensions are not specified.  
-
-These points need experimenting for finding exact implementation details, will be  this part later.
+- **Data preprocessing.** ImageNet mean/std normalization; random scale (0.5–2.0), horizontal flip p=0.5, random crop to 473 (PASCAL) or 641 (COCO); validation disables stochastic aug but keeps normalization/resize.
+- **Attention type.** Multi-head attention with 4 heads in Support Modulation.
+- **Binary mask threshold.** Binary IoU computed from logits; masks built as foreground==class_id for support/query.
+- **Channel sizes.** Backbone features projected to 256 channels; ABCB hidden dims follow the provided implementation.
 
 # 3. Experiments and results
 
-## 3.1 Experimental setup
+## 3.1 Experimental setup (code defaults)
 
-All experiments use the ABCB model described in Section 2. We used the ResNet-50 backbone initialized with ImageNet-pretrained weights and **feeze the model** throughout training (backbone parameters have `requires_grad=False`; BatchNorm layers are held in **eval** mode). Backbone features are projected to a **256-dimensional** embedding space and used **T = 3** for iterative updates. Attention blocks is **4 headed**, the structure-history resolution is set to **L_hist = 16**, and we cap the number of tokens to control memory and runtime: **max_support_tokens = 1024**, **max_fg_tokens = 512**, and **max_bg_tokens = 512**. Query Prediction, Support Modulation, Evolution Features (pixel-wise and structure-wise), and Information Cleansing are instantiated exactly as in our provided implementation.
+- **Model**: ABCB with ResNet-50 or ResNet-101 backbones (trainable), 256-d projection, T=3 iterations, 4-head attention, token caps (max_support_tokens=1024, max_fg_tokens=512, max_bg_tokens=512).
+- **Datasets**: PASCAL-5ᵢ and COCO-20ᵢ, folds 0–3, 1-shot and 5-shot. COCO masks are auto-generated and cached; class maps cached per fold/split.
+- **Augmentation**: Random scale 0.5–2.0, horizontal flip p=0.5, random crop 473 (PASCAL) / 641 (COCO), ImageNet normalization. Val uses deterministic resize/normalization.
+- **Optimization**: SGD, momentum 0.9, weight decay 1e-4, poly LR (power 0.9). Base LR: 0.002 (PASCAL), 0.005 (COCO). Batch size: 16 (PASCAL), 8 (COCO). num_workers default 4 (0 in debug).
+- **Debug mode**: Overrides to episodes=4/2 (train/val), epochs=1, batch_size=2, num_workers=0, max_steps=2 to validate quickly.
+- **Caching/resume**: Uses existing caches for PASCAL-5ᵢ and COCO-20ᵢ; skips folds with existing results; reuses checkpoints if present.
 
-Training and evaluation are conducted on **PASCAL-5ᵢ (fold 2)** using the project’s episodic reader (`Pascal5iReader(base_dir, fold=2, train=True/False)`), which yields **1-shot** episodes consisting of one support image/mask pair and one query image/mask pair. To accommodate variable spatial sizes returned by the reader, data loading uses a custom `collate_fn` that **pads** all tensors in a minibatch to the maximum height/width in that batch, after which the training pipeline applies the same spatial preprocessing to all frames. Inputs are normalized using ImageNet mean/std. During training, episodes are augmented with **random scaling** in ([0.5, 2.0]), **horizontal flipping** with probability 0.5, and a **random crop** to **473×473**. Validation uses the same normalization but **disables stochastic augmentation**.
+## 3.2 Running the code (CLI)
 
-Hyperparameters used for training is same as used in the paper: SGD with **momentum 0.9** and **weight decay 1e-4**, a base learning rate of **2×10⁻³**, and a **polynomial decay** schedule with power **0.9** applied over the full training acraoss epochs (`epochs × len(train_loader)` iterations),  **batch_size = 16**, **num_workers = 4**, **λ = 0.2** for the auxiliary loss weight, and **crop_size = 473**. For faster iteration during debugging, we occasionally train on a reduced subset of episodes; final numbers should be reported using the full episodic sampler. Model is evaluated with mean IoU on the held-out fold-2 classes, computed from the model’s interpolated logits using our binary IoU routine.
+Primary entry point:
 
-At this stage, our implementation targets **PASCAL-5ᵢ 1-shot** only. Extensions to **COCO-20ᵢ**, **5-shot** episodic training, and alternative backbones (e.g., ResNet-101) are left for future work, along with running all four folds and reporting the standard cross-validated average.
+```bash
+python src/replicate_abcb.py \
+  --data-root ./data \
+  --output-dir ./output \
+  [--download] \
+  [--debug] \
+  [--prepare-only] \
+  [--push-to-hub --hf-repo okolukisa1/7880-project --hf-branch main] \
+  [--log-level INFO]
+```
 
-## 3.2 Running the code
-
-All experiments in this project can be reproduced by running the notebook  **`temp.ipynb`**, which contains the full pipeline for dataset construction, model initialization, training, and evaluation. At the current stage, the notebook serves as the primary entry point for executing the code and verifying results.
-
-In future revisions, this notebook workflow will be refactored into a standalone package , enabling more general and modular use beyond the notebook environment.
+- `--prepare-only`: build datasets/masks/caches then exit.
+- `--debug`: fast sanity run with small episode counts and max_steps=2.
+- Resume: existing results in `output/replication_results.json` skip re-eval; existing checkpoints skip training.
+- COCO masks: auto-generated if missing; caches stored under `data/coco/coco20i_fold*_{train,val}.pt`.
+- Hugging Face upload: requires `huggingface_hub` and authentication (`huggingface-cli login` or `HF_TOKEN`). Uses `--push-to-hub` and repo/branch flags.
 
 
 ## 3.3 Results
