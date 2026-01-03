@@ -144,8 +144,8 @@ def main() -> None:
         "pascal5i": {
             "train_episodes": 20000,
             "val_episodes": 2000,
-            "epochs": 250,
-            "batch_size": 32,
+            "epochs": 30,
+            "batch_size": 16,
             "base_lr": 0.002,
             "crop_size": 473,
             "num_workers": 4,
@@ -154,7 +154,7 @@ def main() -> None:
         "coco20i": {
             "train_episodes": 20000,
             "val_episodes": 2000,
-            "epochs": 70,
+            "epochs": 15,
             "batch_size": 8,
             "base_lr": 0.005,
             "crop_size": 641,
