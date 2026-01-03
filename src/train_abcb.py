@@ -210,7 +210,7 @@ def train_abcb(
     max_steps: Optional[int] = None,
 ) -> Dict[str, List[float]]:
     model = model.to(device)
-    model = torch.compile(model, mode="reduce-overhead")  # Optimize with torch.compile
+    model = torch.compile(model, mode="default")  # Stable graph optimization
 
     train_loader = DataLoader(
         train_ds,
