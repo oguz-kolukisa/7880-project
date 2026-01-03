@@ -146,7 +146,7 @@ def main() -> None:
             "val_episodes": 2000,
             "epochs": 30,
             "batch_size": 32,  # Doubled from 16
-            "base_lr": 0.002,
+            "base_lr": 0.004,  # Scaled proportionally with batch size (was 0.002)
             "crop_size": 473,
             "num_workers": 4,
             "seed": 0,
@@ -156,7 +156,7 @@ def main() -> None:
             "val_episodes": 2000,
             "epochs": 15,
             "batch_size": 16,  # Doubled from 8
-            "base_lr": 0.005,
+            "base_lr": 0.010,  # Scaled proportionally with batch size (was 0.005)
             "crop_size": 641,
             "num_workers": 4,
             "seed": 0,
@@ -250,7 +250,11 @@ def main() -> None:
                         logging.info(f"Results exist for {key} fold {fold}, skipping evaluation and model loading.")
                         score = results[key][str(fold)]["miou"]
                     else:
-                        model = ABCB(backbone_name=backbone, pretrained_backbone=True)
+                        model = ABCB(
+                            backbone_name=backbone, 
+                            pretrained_backbone=True,
+                            freeze_backbone=False,  # Make backbone trainable
+                        )
                         max_steps = 2 if args.debug else None
                         if ckpt_path.exists():
                             logging.info(f"Checkpoint exists for {key} fold {fold}, loading and skipping training.")

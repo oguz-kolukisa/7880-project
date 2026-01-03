@@ -210,7 +210,7 @@ def train_abcb(
     max_steps: Optional[int] = None,
 ) -> Dict[str, List[float]]:
     model = model.to(device)
-    model = torch.compile(model, mode="default")  # Stable graph optimization
+    # model = torch.compile(model, mode="default")  # Disabled - can cause issues on first runs
 
     train_loader = DataLoader(
         train_ds,
@@ -303,8 +303,17 @@ def train_abcb(
 
                 loss = abcb_loss(out["P_list"], out["Phat_list"], query_mask, lam=lam)
 
+            # Log first few losses to check if training is working
+            if total_steps < 5:
+                logging.info(f"Step {total_steps}: loss={loss.item():.4f}")
+
             # Backprop with gradient scaling
             scaler.scale(loss).backward()
+            
+            # Unscale gradients before clipping (important for FP16)
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)
+            
             scaler.step(optimizer)
             scaler.update()
 
@@ -334,15 +343,24 @@ def train_abcb(
                 query_img = query_img.to(device, non_blocking=True)
                 query_mask = query_mask.to(device, non_blocking=True)
 
-                out = model(
-                    query_img=query_img,
-                    support_img=support_img,
-                    support_mask=support_mask,
-                    return_all=False,
-                )
+                # Use same float16 context as training
+                with autocast(device_type="cuda", dtype=torch.float16):
+                    out = model(
+                        query_img=query_img,
+                        support_img=support_img,
+                        support_mask=support_mask,
+                        return_all=False,
+                    )
                 logits = out["logits"]
 
                 iou = binary_miou_from_logits(logits, query_mask)
+                
+                # Log first batch details
+                if n == 0:
+                    logging.info(f"First val batch - logits shape: {logits.shape}, range: [{logits.min():.2f}, {logits.max():.2f}]")
+                    logging.info(f"First val batch - query_mask shape: {query_mask.shape}, unique: {torch.unique(query_mask).tolist()}")
+                    logging.info(f"First val batch - IoU: {iou:.4f}")
+                
                 iou_sum += iou * query_img.shape[0]
                 n += query_img.shape[0]
                 val_pbar.set_postfix(iou=f"{iou:.4f}")
