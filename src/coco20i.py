@@ -18,7 +18,10 @@ from tqdm import tqdm
 
 
 def generate_coco_masks(root: str, num_workers: int = 1) -> None:
-    """Generate semantic masks for COCO-20i from annotations."""
+    """Generate semantic masks for COCO-20i from annotations.
+
+    Optimized to avoid re-loading COCO annotations for every image.
+    """
     import multiprocessing
     import numpy as np
     from PIL import Image
@@ -28,9 +31,16 @@ def generate_coco_masks(root: str, num_workers: int = 1) -> None:
     except ImportError:
         raise ImportError("pycocotools is required to generate COCO masks. Install with: pip install pycocotools")
 
-    def _process_image(args):
-        ann_file, img_dir, mask_dir, img_id = args
-        coco = COCO(str(ann_file))
+    # Worker globals for multiprocessing to load COCO once per process
+    _worker_coco = {}
+
+    def _init_worker(ann_file: Path):
+        nonlocal _worker_coco
+        _worker_coco["coco"] = COCO(str(ann_file))
+
+    def _process_image_worker(args):
+        img_dir, mask_dir, img_id = args
+        coco = _worker_coco["coco"]
         img_info = coco.loadImgs(img_id)[0]
         img_path = img_dir / img_info['file_name']
         if not img_path.exists():
@@ -39,7 +49,6 @@ def generate_coco_masks(root: str, num_workers: int = 1) -> None:
         ann_ids = coco.getAnnIds(imgIds=img_id)
         anns = coco.loadAnns(ann_ids)
 
-        # Create semantic mask
         mask = np.zeros((img_info['height'], img_info['width']), dtype=np.uint8)
         for ann in anns:
             if 'segmentation' in ann:
@@ -49,7 +58,28 @@ def generate_coco_masks(root: str, num_workers: int = 1) -> None:
                     m = np.sum(m, axis=2) > 0
                 mask[m > 0] = ann['category_id']
 
-        # Save mask
+        mask_img = Image.fromarray(mask)
+        mask_path = mask_dir / f"{img_path.stem}.png"
+        mask_img.save(mask_path)
+
+    def _process_image_serial(coco: "COCO", img_dir: Path, mask_dir: Path, img_id: int):
+        img_info = coco.loadImgs(img_id)[0]
+        img_path = img_dir / img_info['file_name']
+        if not img_path.exists():
+            return
+
+        ann_ids = coco.getAnnIds(imgIds=img_id)
+        anns = coco.loadAnns(ann_ids)
+
+        mask = np.zeros((img_info['height'], img_info['width']), dtype=np.uint8)
+        for ann in anns:
+            if 'segmentation' in ann:
+                rle = mask_utils.frPyObjects(ann['segmentation'], img_info['height'], img_info['width'])
+                m = mask_utils.decode(rle)
+                if len(m.shape) == 3:
+                    m = np.sum(m, axis=2) > 0
+                mask[m > 0] = ann['category_id']
+
         mask_img = Image.fromarray(mask)
         mask_path = mask_dir / f"{img_path.stem}.png"
         mask_img.save(mask_path)
@@ -67,18 +97,20 @@ def generate_coco_masks(root: str, num_workers: int = 1) -> None:
             logging.warning(f"Skipping {image_set}: annotations or images not found")
             continue
 
-        coco = COCO(str(ann_file))
-        img_ids = coco.getImgIds()
-        logging.info(f"Processing {len(img_ids)} images for {image_set}")
-
         if num_workers > 1:
-            with multiprocessing.Pool(num_workers) as pool:
-                args_list = [(ann_file, img_dir, mask_dir, img_id) for img_id in img_ids]
-                pool.map(_process_image, args_list)
+            coco = COCO(str(ann_file))  # load once to count ids
+            img_ids = coco.getImgIds()
+            logging.info(f"Processing {len(img_ids)} images for {image_set} (mp={num_workers})")
+            with multiprocessing.Pool(num_workers, initializer=_init_worker, initargs=(ann_file,)) as pool:
+                args_list = [(img_dir, mask_dir, img_id) for img_id in img_ids]
+                list(tqdm(pool.imap_unordered(_process_image_worker, args_list), total=len(args_list), desc=f"Generating masks for {image_set}", leave=False))
         else:
+            coco = COCO(str(ann_file))
+            img_ids = coco.getImgIds()
+            logging.info(f"Processing {len(img_ids)} images for {image_set}")
             from tqdm import tqdm
             for img_id in tqdm(img_ids, desc=f"Generating masks for {image_set}", leave=False):
-                _process_image((ann_file, img_dir, mask_dir, img_id))
+                _process_image_serial(coco, img_dir, mask_dir, img_id)
     logging.info("COCO mask generation completed")
 
 
