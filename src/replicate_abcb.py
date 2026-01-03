@@ -146,7 +146,7 @@ def main() -> None:
             "val_episodes": 2000,
             "epochs": 30,
             "batch_size": 32,  # Doubled from 16
-            "base_lr": 0.004,  # Scaled proportionally with batch size (was 0.002)
+            "base_lr": 0.002,  # Scaled proportionally with batch size (was 0.002)
             "crop_size": 473,
             "num_workers": 4,
             "seed": 0,
@@ -156,7 +156,7 @@ def main() -> None:
             "val_episodes": 2000,
             "epochs": 15,
             "batch_size": 16,  # Doubled from 8
-            "base_lr": 0.010,  # Scaled proportionally with batch size (was 0.005)
+            "base_lr": 0.005,  # Scaled proportionally with batch size (was 0.005)
             "crop_size": 641,
             "num_workers": 4,
             "seed": 0,

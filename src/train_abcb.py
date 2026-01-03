@@ -261,6 +261,7 @@ def train_abcb(
             dynamic_ncols=True,
             position=1,
         )
+        last_loss = 0.0
         for batch in step_pbar:
             if max_steps is not None and total_steps >= max_steps:
                 training_done = True
@@ -303,10 +304,7 @@ def train_abcb(
 
                 loss = abcb_loss(out["P_list"], out["Phat_list"], query_mask, lam=lam)
 
-            # Log first few losses to check if training is working
-            if total_steps < 5:
-                logging.info(f"Step {total_steps}: loss={loss.item():.4f}")
-
+            
             # Backprop with gradient scaling
             scaler.scale(loss).backward()
             
@@ -317,9 +315,11 @@ def train_abcb(
             scaler.step(optimizer)
             scaler.update()
 
-            epoch_loss_sum += loss.item()
+            last_loss = loss.item()
+            epoch_loss_sum += last_loss
             cur_iter += 1
             total_steps += 1
+            step_pbar.set_postfix(loss=f"{last_loss:.4f}")
 
         step_pbar.close()
         if training_done:
@@ -355,11 +355,6 @@ def train_abcb(
 
                 iou = binary_miou_from_logits(logits, query_mask)
                 
-                # Log first batch details
-                if n == 0:
-                    logging.info(f"First val batch - logits shape: {logits.shape}, range: [{logits.min():.2f}, {logits.max():.2f}]")
-                    logging.info(f"First val batch - query_mask shape: {query_mask.shape}, unique: {torch.unique(query_mask).tolist()}")
-                    logging.info(f"First val batch - IoU: {iou:.4f}")
                 
                 iou_sum += iou * query_img.shape[0]
                 n += query_img.shape[0]
