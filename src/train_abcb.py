@@ -103,32 +103,93 @@ def abcb_loss(
     lam: float = 0.2,
     ignore_index: int = 255,
 ) -> torch.Tensor:
+    """Compute ABCB loss with proper shape handling.
+    
+    Args:
+        P_list: list of prediction logits [B, 2, H, W] or similar
+        Phat_list: list of auxiliary predictions
+        G_q: ground truth [B, 1, H, W] or [B, H, W]
+        lam: weight for auxiliary loss
+        ignore_index: index to ignore in cross-entropy
+    """
     if G_q.dim() == 4:
         G = G_q[:, 0]
     else:
         G = G_q
-    G = (G > 0.5).long()
+    
+    # Threshold GT: handle both float [0,1] and int {0,1}
+    if G.dtype == torch.float32 or G.dtype == torch.float64:
+        G = (G > 0.5).long()
+    else:
+        G = G.long()
+    
+    logging.debug(f"Loss input: P_list[0].shape={P_list[0].shape}, G.shape={G.shape}, G dtype={G.dtype}, unique values={torch.unique(G)}")
 
     loss = 0.0
-    for Pt in P_list:
-        Pt_up = F.interpolate(Pt, size=G.shape[-2:], mode="bilinear", align_corners=False)
+    for i, Pt in enumerate(P_list):
+        # Ensure spatial dimensions match
+        if Pt.shape[-2:] != G.shape[-2:]:
+            Pt_up = F.interpolate(Pt, size=G.shape[-2:], mode="bilinear", align_corners=False)
+            logging.debug(f"Upsampled P_list[{i}] from {Pt.shape} to {Pt_up.shape}")
+        else:
+            Pt_up = Pt
         loss = loss + F.cross_entropy(Pt_up, G, ignore_index=ignore_index)
 
-    for Phat in Phat_list:
-        Phat_up = F.interpolate(Phat, size=G.shape[-2:], mode="bilinear", align_corners=False)
+    for i, Phat in enumerate(Phat_list):
+        # Ensure spatial dimensions match
+        if Phat.shape[-2:] != G.shape[-2:]:
+            Phat_up = F.interpolate(Phat, size=G.shape[-2:], mode="bilinear", align_corners=False)
+            logging.debug(f"Upsampled Phat_list[{i}] from {Phat.shape} to {Phat_up.shape}")
+        else:
+            Phat_up = Phat
         loss = loss + lam * F.cross_entropy(Phat_up, G, ignore_index=ignore_index)
 
+    logging.debug(f"Total loss={loss.item():.4f}")
     return loss
 
 
 @torch.no_grad()
 def binary_miou_from_logits(logits: torch.Tensor, G_q: torch.Tensor, eps: float = 1e-6) -> float:
-    pred = logits.argmax(dim=1)
-    gt = (G_q[:, 0] > 0.5).long()
-
+    """Compute binary IoU from logits and ground truth mask.
+    
+    Args:
+        logits: [B, 2, H, W] or [B, H, W] tensor
+        G_q: [B, 1, H, W] or [B, H, W] ground truth mask (values in [0,1] or {0,1})
+        eps: small value to avoid division by zero
+    
+    Returns:
+        IoU score (float)
+    """
+    # Handle logits shape: if [B, 2, H, W], take argmax; if [B, H, W], assume raw predictions
+    if logits.dim() == 4 and logits.shape[1] == 2:
+        pred = logits.argmax(dim=1)  # [B, H, W]
+    elif logits.dim() == 4:
+        pred = logits[:, 0]  # Take first channel if single-channel output
+    else:
+        pred = logits  # Already [B, H, W]
+    
+    # Handle GT shape and threshold
+    if G_q.dim() == 4:
+        G_q = G_q[:, 0]  # [B, 1, H, W] -> [B, H, W]
+    
+    # Ensure logits and GT have same spatial dimensions
+    if pred.shape[-2:] != G_q.shape[-2:]:
+        pred = F.interpolate(pred.unsqueeze(1).float(), size=G_q.shape[-2:], mode="nearest").squeeze(1).long()
+        logging.debug(f"Upsampled pred from {logits.shape} to {pred.shape}")
+    
+    # Threshold GT: handle both [0,1] float and {0,1} int
+    if G_q.dtype == torch.float32 or G_q.dtype == torch.float64:
+        gt = (G_q > 0.5).long()
+    else:
+        gt = G_q.long()
+    
+    # Compute binary IoU (foreground class = 1)
     inter = ((pred == 1) & (gt == 1)).sum().item()
     union = ((pred == 1) | (gt == 1)).sum().item()
-    return float(inter) / float(union + eps)
+    iou = float(inter) / float(union + eps)
+    
+    logging.debug(f"IoU: pred shape={pred.shape}, gt shape={gt.shape}, inter={inter}, union={union}, iou={iou:.4f}")
+    return iou
 
 
 def train_abcb(

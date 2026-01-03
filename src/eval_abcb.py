@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import json
+import logging
 from typing import Dict, List, Optional
 
 import torch
@@ -50,10 +51,17 @@ def evaluate_fold(
     iou_sum, n = 0.0, 0
     eval_pbar = tqdm(dataloader, desc="Eval", leave=False, dynamic_ncols=True)
     steps = 0
+    first_batch = True
     for batch in eval_pbar:
         if max_steps is not None and steps >= max_steps:
             break
         support_img, support_mask, query_img, query_mask = unpack_episode(batch)
+        
+        # Debug first batch shapes
+        if first_batch:
+            logging.debug(f"Eval batch shapes: support_img={support_img.shape}, query_img={query_img.shape}, query_mask={query_mask.shape}")
+            first_batch = False
+        
         support_img = support_img.to(device, non_blocking=True)
         support_mask = support_mask.to(device, non_blocking=True)
         query_img = query_img.to(device, non_blocking=True)
@@ -65,6 +73,13 @@ def evaluate_fold(
             support_mask=support_mask,
             return_all=False,
         )
+        
+        # Debug model output
+        if steps == 0:
+            logging.debug(f"Model output logits shape: {out['logits'].shape}, dtype={out['logits'].dtype}")
+            logging.debug(f"Logits value range: min={out['logits'].min():.4f}, max={out['logits'].max():.4f}")
+            logging.debug(f"Query mask shape: {query_mask.shape}, dtype={query_mask.dtype}, unique values={torch.unique(query_mask)}")
+        
         iou = binary_miou_from_logits(out["logits"], query_mask)
         iou_sum += iou * query_img.shape[0]
         n += query_img.shape[0]
