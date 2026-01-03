@@ -151,7 +151,7 @@ def abcb_loss(
 
 @torch.no_grad()
 def binary_miou_from_logits(logits: torch.Tensor, G_q: torch.Tensor, eps: float = 1e-6) -> float:
-    """Compute binary IoU from logits and ground truth mask.
+    """Compute binary IoU from logits and ground truth mask (averaged per sample).
     
     Args:
         logits: [B, 2, H, W] or [B, H, W] tensor
@@ -159,7 +159,7 @@ def binary_miou_from_logits(logits: torch.Tensor, G_q: torch.Tensor, eps: float 
         eps: small value to avoid division by zero
     
     Returns:
-        IoU score (float)
+        Average IoU score across batch (float)
     """
     # Handle logits shape: if [B, 2, H, W], take argmax; if [B, H, W], assume raw predictions
     if logits.dim() == 4 and logits.shape[1] == 2:
@@ -184,13 +184,18 @@ def binary_miou_from_logits(logits: torch.Tensor, G_q: torch.Tensor, eps: float 
     else:
         gt = G_q.long()
     
-    # Compute binary IoU (foreground class = 1)
-    inter = ((pred == 1) & (gt == 1)).sum().item()
-    union = ((pred == 1) | (gt == 1)).sum().item()
-    iou = float(inter) / float(union + eps)
+    # Compute binary IoU per sample and average
+    B = pred.shape[0]
+    iou_scores = []
+    for b in range(B):
+        inter = ((pred[b] == 1) & (gt[b] == 1)).sum().item()
+        union = ((pred[b] == 1) | (gt[b] == 1)).sum().item()
+        iou_b = float(inter) / float(union + eps)
+        iou_scores.append(iou_b)
     
-    logging.debug(f"IoU: pred shape={pred.shape}, gt shape={gt.shape}, inter={inter}, union={union}, iou={iou:.4f}")
-    return iou
+    avg_iou = sum(iou_scores) / len(iou_scores) if iou_scores else 0.0
+    logging.debug(f"IoU: pred shape={pred.shape}, gt shape={gt.shape}, avg_iou={avg_iou:.4f}, iou_scores={[f'{s:.4f}' for s in iou_scores[:3]]}")
+    return avg_iou
 
 
 def train_abcb(
@@ -355,7 +360,7 @@ def train_abcb(
 
                 iou = binary_miou_from_logits(logits, query_mask)
                 
-                
+                # iou is already averaged across batch samples, just accumulate
                 iou_sum += iou * query_img.shape[0]
                 n += query_img.shape[0]
                 val_pbar.set_postfix(iou=f"{iou:.4f}")

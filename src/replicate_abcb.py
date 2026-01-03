@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--download", action="store_true", help="Download datasets with torchvision.")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with limited steps (max_steps=2).")
     parser.add_argument("--prepare-only", action="store_true", help="Only prepare datasets/masks and exit.")
+    parser.add_argument("--eval-only", action="store_true", help="Only evaluate existing checkpoints, skip training.")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
                         help="Logging level (default: INFO)")
     parser.add_argument("--push-to-hub", action="store_true", help="After each evaluation, upload output directory to Hugging Face Hub.")
@@ -136,6 +137,17 @@ def main() -> None:
         format='%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%H:%M:%S'
     )
+    
+    # Display mode
+    mode_info = []
+    if args.eval_only:
+        mode_info.append("EVALUATION-ONLY MODE")
+    if args.debug:
+        mode_info.append("DEBUG MODE")
+    if args.prepare_only:
+        mode_info.append("PREPARE-ONLY MODE")
+    if mode_info:
+        logging.info(f"Running in: {' + '.join(mode_info)}")
     
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -256,7 +268,16 @@ def main() -> None:
                             freeze_backbone=False,  # Make backbone trainable
                         )
                         max_steps = 2 if args.debug else None
-                        if ckpt_path.exists():
+                        
+                        # Evaluation-only mode: only load and evaluate existing checkpoints
+                        if args.eval_only:
+                            if not ckpt_path.exists():
+                                logging.warning(f"Eval-only mode: checkpoint not found for {key} fold {fold} at {ckpt_path}, skipping.")
+                                continue
+                            logging.info(f"Eval-only mode: loading checkpoint for {key} fold {fold}")
+                            model.load_state_dict(torch.load(ckpt_path, map_location=args.device))
+                            model = model.to(args.device)
+                        elif ckpt_path.exists():
                             logging.info(f"Checkpoint exists for {key} fold {fold}, loading and skipping training.")
                             model.load_state_dict(torch.load(ckpt_path, map_location=args.device))
                             model = model.to(args.device)
