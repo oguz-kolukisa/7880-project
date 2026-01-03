@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 
 
@@ -236,7 +236,7 @@ def train_abcb(
         weight_decay=weight_decay,
     )
 
-    scaler = GradScaler()  # For mixed precision (float16) training
+    scaler = GradScaler(device_type="cuda")  # For mixed precision (float16) training
     max_iter = epochs * len(train_loader)
     cur_iter = 0
 
@@ -293,7 +293,7 @@ def train_abcb(
             optimizer.zero_grad(set_to_none=True)
 
             # Float16 mixed precision training
-            with autocast(device_type="cuda" if "cuda" in device else "cpu", dtype=torch.float16):
+            with autocast(device_type="cuda", dtype=torch.float16):
                 out = model(
                     query_img=query_img,
                     support_img=support_img,
