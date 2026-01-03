@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
@@ -15,18 +16,25 @@ from src.third_party.pascal_5i.pascal5i_reader import Pascal5iReader
 
 def download_pascal5i(root: str, image_set: str = "train") -> None:
     """Download SBD and VOC2012 data required for PASCAL-5i."""
-    sbd_path = f"{root}/sbd"
-    torchvision.datasets.SBDataset(
-        sbd_path,
-        image_set=image_set,
-        mode="segmentation",
-        download=True,
-    )
-    torchvision.datasets.VOCSegmentation(
-        root,
-        image_set=image_set,
-        download=True,
-    )
+    root_path = Path(root)
+    root_path.mkdir(parents=True, exist_ok=True)
+    sbd_path = root_path / "sbd"
+    sbd_path.mkdir(parents=True, exist_ok=True)
+    sbd_ready = (sbd_path / "cls").exists() and (sbd_path / "img").exists()
+    if not sbd_ready:
+        torchvision.datasets.SBDataset(
+            str(sbd_path),
+            image_set=image_set,
+            mode="segmentation",
+            download=True,
+        )
+    voc_root = root_path / "VOCdevkit" / "VOC2012"
+    if not voc_root.exists():
+        torchvision.datasets.VOCSegmentation(
+            str(root_path),
+            image_set="trainval",
+            download=True,
+        )
 
 
 class Pascal5iDataset(Dataset):

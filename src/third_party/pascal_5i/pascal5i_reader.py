@@ -1,6 +1,7 @@
 """
 Module containing reader to parse pascal_5i dataset from SBD and VOC2012
 """
+import logging
 import os
 from PIL import Image
 from scipy.io import loadmat
@@ -96,8 +97,8 @@ class Pascal5iReader(torchvision.datasets.vision.VisionDataset):
 
         # Given a class, this dict returns list of images containing the class
         self.class_img_map = {}
-        for label_id, _ in enumerate(self.label_set):
-            self.class_img_map[label_id + 1] = []
+        for x in self.label_set:
+            self.class_img_map[x] = []
 
         # Given an index of an image, this dict returns list of classes in the image
         self.img_class_map = {}
@@ -105,15 +106,15 @@ class Pascal5iReader(torchvision.datasets.vision.VisionDataset):
         saved_metadata_path = f"dataset_{fold}_{train}.pt"
         
         if os.path.exists(saved_metadata_path):
-            print('Using saved class mapping')
+            logging.debug('Using saved class mapping')
             d = torch.load(saved_metadata_path)
             self.img_class_map = d['icm']
             self.class_img_map = d['cim']
             folded_images = d['fi']
             folded_targets = d['ft']
         else:
-            print('Creating Dataset')
-            for i in trange(len(self.images)):
+            logging.info('Creating Pascal5i dataset class mapping')
+            for i in trange(len(self.images), desc="Building Pascal5i class maps", leave=False):
                 mask = self.load_seg_mask(self.targets[i])
                 appended_flag = False
                 for label_id, x in enumerate(self.label_set):
@@ -124,7 +125,7 @@ class Pascal5iReader(torchvision.datasets.vision.VisionDataset):
                             folded_targets.append(self.targets[i])
                             appended_flag = True
                         cur_img_id = len(folded_images) - 1
-                        cur_class_id = label_id + 1
+                        cur_class_id = x
                         # This image must be the latest appended image
                         self.class_img_map[cur_class_id].append(cur_img_id)
                         if cur_img_id in self.img_class_map:
@@ -160,7 +161,7 @@ class Pascal5iReader(torchvision.datasets.vision.VisionDataset):
             target = Image.fromarray(mat['GTcls'][0]['Segmentation'][0])
         else:
             target = Image.open(file_path)
-        target_np = np.array(target, dtype=np.long)
+        target_np = np.array(target, dtype=np.int64)
 
         # Annotation in VOC contains 255
         target_np[target_np > 20] = 0

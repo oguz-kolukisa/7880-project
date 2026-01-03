@@ -14,7 +14,7 @@ def unpack_episode(batch: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor
     if isinstance(batch, dict):
         support_img = batch.get("support_img", batch.get("support_images", batch.get("I_s")))
         support_mask = batch.get("support_mask", batch.get("support_masks", batch.get("G_s")))
-        query_img = batch.get("query_img", batch.get("query_image", batch.get("I_q")))
+        query_img = batch.get("query_img", batch.get("query_image", batch.get("query_images", batch.get("I_q"))))
         query_mask = batch.get("query_mask", batch.get("query_masks", batch.get("query_gt", batch.get("G_q"))))
         if support_img is None:
             raise KeyError(f"Can't find support/query keys in batch dict: {list(batch.keys())}")
@@ -142,6 +142,7 @@ def train_abcb(
     crop_size: int = 473,
     num_workers: int = 4,
     save_dir: Optional[str] = None,
+    max_steps: Optional[int] = None,
 ) -> Dict[str, List[float]]:
     model = model.to(device)
 
@@ -176,8 +177,12 @@ def train_abcb(
     train_losses_log: List[float] = []
     val_ious_log: List[float] = []
 
-    epoch_pbar = tqdm(range(epochs), desc="Epochs", dynamic_ncols=True)
+    epoch_pbar = tqdm(range(epochs), desc="Epochs", dynamic_ncols=True, leave=False)
+    total_steps = 0
+    training_done = False
     for epoch in epoch_pbar:
+        if training_done:
+            break
         model.train()
         epoch_loss_sum = 0.0
 
@@ -190,6 +195,9 @@ def train_abcb(
             position=1,
         )
         for batch in step_pbar:
+            if max_steps is not None and total_steps >= max_steps:
+                training_done = True
+                break
             support_img, support_mask, query_img, query_mask = unpack_episode(batch)
 
             support_img = support_img.to(device, non_blocking=True)
@@ -230,8 +238,11 @@ def train_abcb(
 
             epoch_loss_sum += loss.item()
             cur_iter += 1
+            total_steps += 1
 
         step_pbar.close()
+        if training_done:
+            break
         avg_train_loss = epoch_loss_sum / max(1, len(train_loader))
 
         model.eval()

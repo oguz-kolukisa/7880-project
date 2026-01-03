@@ -44,11 +44,15 @@ def evaluate_fold(
     model: torch.nn.Module,
     dataloader: DataLoader,
     device: str,
+    max_steps: Optional[int] = None,
 ) -> float:
     model.eval()
     iou_sum, n = 0.0, 0
     eval_pbar = tqdm(dataloader, desc="Eval", leave=False, dynamic_ncols=True)
+    steps = 0
     for batch in eval_pbar:
+        if max_steps is not None and steps >= max_steps:
+            break
         support_img, support_mask, query_img, query_mask = unpack_episode(batch)
         support_img = support_img.to(device, non_blocking=True)
         support_mask = support_mask.to(device, non_blocking=True)
@@ -65,6 +69,7 @@ def evaluate_fold(
         iou_sum += iou * query_img.shape[0]
         n += query_img.shape[0]
         eval_pbar.set_postfix(iou=f"{iou:.4f}")
+        steps += 1
     return iou_sum / max(1, n)
 
 
@@ -78,9 +83,10 @@ def evaluate_all_folds(
     batch_size: int,
     num_workers: int,
     seed: int,
+    max_steps: Optional[int] = None,
 ) -> Dict[int, float]:
     fold_scores: Dict[int, float] = {}
-    fold_pbar = tqdm(range(4), desc="Folds", dynamic_ncols=True)
+    fold_pbar = tqdm(range(4), desc="Folds", dynamic_ncols=True, leave=False)
     for fold in fold_pbar:
         dataset = build_dataset(dataset_name, data_root, fold, episodes, seed)
         dataloader = DataLoader(
@@ -97,7 +103,7 @@ def evaluate_all_folds(
         load_checkpoint(model, ckpt_path, device)
         model = model.to(device)
 
-        fold_scores[fold] = evaluate_fold(model, dataloader, device)
+        fold_scores[fold] = evaluate_fold(model, dataloader, device, max_steps)
         fold_pbar.set_postfix(fold=fold, miou=f"{fold_scores[fold]:.4f}")
     return fold_scores
 
@@ -117,12 +123,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument(
-        "--output",
-        type=str,
-        default=None,
-        help="Optional path to save results as JSON.",
-    )
+    parser.add_argument("--max-steps", type=int, default=None, help="Limit evaluation to max steps for debugging.")
     return parser.parse_args()
 
 
@@ -138,6 +139,7 @@ def main() -> None:
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         seed=args.seed,
+        max_steps=args.max_steps,
     )
     mean_score = sum(scores.values()) / max(1, len(scores))
     for fold, score in scores.items():
