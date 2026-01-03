@@ -236,7 +236,7 @@ def train_abcb(
         weight_decay=weight_decay,
     )
 
-    scaler = GradScaler(device_type="cuda")  # For mixed precision (float16) training
+    scaler = GradScaler()  # For mixed precision (float16) training
     max_iter = epochs * len(train_loader)
     cur_iter = 0
 
