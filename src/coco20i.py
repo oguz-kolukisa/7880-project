@@ -218,7 +218,7 @@ class Coco20iReader:
         logging.debug(f"Checking cache path: {cache_path} (exists={cache_path.exists()})")
         if cache_path.exists():
             try:
-                cached = torch.load(cache_path)
+                cached = torch.load(cache_path, weights_only=False)
                 self.class_img_map = cached["class_img_map"]
                 self.img_class_map = cached["img_class_map"]
                 self.images = cached["images"]

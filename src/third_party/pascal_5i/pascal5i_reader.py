@@ -107,7 +107,7 @@ class Pascal5iReader(torchvision.datasets.vision.VisionDataset):
         
         if os.path.exists(saved_metadata_path):
             logging.debug('Using saved class mapping')
-            d = torch.load(saved_metadata_path)
+            d = torch.load(saved_metadata_path, weights_only=False)
             self.img_class_map = d['icm']
             self.class_img_map = d['cim']
             folded_images = d['fi']
