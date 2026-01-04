@@ -40,6 +40,7 @@ python src/replicate_abcb.py \
     --datasets pascal5i \
     --backbones resnet50 \
     --folds 0 \
+    --download \
     --log-level INFO \
     $PUSH_ARGS
 
