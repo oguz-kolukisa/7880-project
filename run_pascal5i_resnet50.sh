@@ -10,7 +10,7 @@ DATA_ROOT="./data"
 OUTPUT_DIR="./output"
 DEVICE="cuda"
 HF_REPO="okolukisa1/7880-project"
-HF_TOKEN="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"  # Set your Hugging Face token here or use environment variable
+HF_TOKEN="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"  # Set your Hugging Face token here or use environment variable
 
 # Authenticate with Hugging Face Hub
 echo "Checking Hugging Face authentication..."
