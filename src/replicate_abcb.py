@@ -26,8 +26,8 @@ from src.train_abcb import train_abcb
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Replicate ABCB results across folds.")
-    parser.add_argument("--data-root", required=True, help="Dataset root directory.")
-    parser.add_argument("--output-dir", required=True, help="Directory to save checkpoints/results.")
+    parser.add_argument("--data-root", default="./data", help="Dataset root directory (default: ./data)")
+    parser.add_argument("--output-dir", default="./output", help="Directory to save checkpoints/results (default: ./output)")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--download", action="store_true", help="Download datasets with torchvision.")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with limited steps (max_steps=2).")
