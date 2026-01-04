@@ -1,7 +1,7 @@
 #!/bin/bash
 # Training script for COCO-20i with ResNet101
-# Handles both 1-shot and 5-shot experiments across all 4 folds
-# Total: 8 training runs (2 shots × 4 folds)
+# Handles both 1-shot and 5-shot experiments for fold 0
+# Total: 2 training runs (2 shots × 1 fold)
 
 set -e
 
@@ -39,6 +39,7 @@ python src/replicate_abcb.py \
     --device "$DEVICE" \
     --datasets coco20i \
     --backbones resnet101 \
+    --folds 0 \
     --log-level INFO \
     $PUSH_ARGS
 
