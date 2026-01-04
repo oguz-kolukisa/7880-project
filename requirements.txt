@@ -38,3 +38,4 @@ torchvision==0.24.1
 tqdm==4.67.1
 triton==3.5.1
 typing_extensions==4.15.0
+huggingface_hub

@@ -213,7 +213,9 @@ class Coco20iReader:
         return target_np
 
     def _build_class_maps(self, fold: int) -> None:
-        cache_path = self.root / f"coco20i_fold{fold}_{'train' if self.train else 'val'}.pt"
+        cache_dir = self.root / ".cache"
+        cache_dir.mkdir(exist_ok=True)
+        cache_path = cache_dir / f"coco20i_fold{fold}_{'train' if self.train else 'val'}.pt"
         # Debug: report cache presence and try to load safely
         logging.debug(f"Checking cache path: {cache_path} (exists={cache_path.exists()})")
         if cache_path.exists():

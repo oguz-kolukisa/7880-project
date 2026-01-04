@@ -98,7 +98,36 @@ class Pascal5iDataset(Dataset):
         return support_indices, query_indices
 
     def _build_binary_mask(self, target: torch.Tensor, class_id: int) -> torch.Tensor:
-        return (target == class_id).long().unsqueeze(0)
+        """Build binary mask for the given class_id.
+        
+        For validation: target is remapped to {0, 1, 2, 3, 4, 5} where 0 is background
+        and 1-5 correspond to the 5 validation classes. We need to map the original
+        class_id to its position in val_label_set.
+        
+        For training: target has val classes set to 0, and classes > max(val_label_set)
+        are shifted down by 5. So original class 6 becomes 1, class 7 becomes 2, etc.
+        We need to apply the same transformation to class_id before comparing.
+        """
+        if not self.reader.train:
+            # Validation: remap class_id to its index in val_label_set (1-5)
+            if class_id in self.reader.val_label_set:
+                remapped_id = self.reader.val_label_set.index(class_id) + 1
+                return (target == remapped_id).long().unsqueeze(0)
+            else:
+                # Class not in validation set, return all zeros
+                return torch.zeros_like(target).unsqueeze(0)
+        else:
+            # Training: apply the same offset that set_bg_pixel applies
+            # Classes 1-5 (val_label_set) are set to 0
+            # Classes > 5 are shifted down by 5
+            max_val_label = max(self.reader.val_label_set)
+            if class_id <= max_val_label:
+                # This is a validation class, which was set to 0
+                return torch.zeros_like(target).unsqueeze(0)
+            else:
+                # Apply the same shift: class_id - 5
+                remapped_id = class_id - 5
+                return (target == remapped_id).long().unsqueeze(0)
 
     def _load_items(self, indices: Sequence[int], class_id: int) -> Tuple[torch.Tensor, torch.Tensor]:
         images: List[torch.Tensor] = []

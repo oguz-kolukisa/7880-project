@@ -38,6 +38,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--push-to-hub", action="store_true", help="After each evaluation, upload output directory to Hugging Face Hub.")
     parser.add_argument("--hf-repo", default="okolukisa1/7880-project", help="Hugging Face repo ID for uploads.")
     parser.add_argument("--hf-branch", default="main", help="Target branch for Hugging Face uploads.")
+    
+    # Filtering arguments for distributed training
+    parser.add_argument("--datasets", nargs="+", choices=["pascal5i", "coco20i"], 
+                        help="Filter specific datasets (default: all)")
+    parser.add_argument("--backbones", nargs="+", choices=["resnet50", "resnet101"], 
+                        help="Filter specific backbones (default: all)")
+    parser.add_argument("--shots", nargs="+", type=int, choices=[1, 5], 
+                        help="Filter specific shot counts (default: all)")
+    parser.add_argument("--folds", nargs="+", type=int, choices=[0, 1, 2, 3], 
+                        help="Filter specific folds (default: all)")
+    
     return parser.parse_args()
 
 
@@ -46,26 +57,80 @@ def upload_output_dir(
     repo_id: str,
     branch: str,
 ) -> None:
-    """Upload the entire output directory to Hugging Face Hub.
+    """Pull latest results from HF Hub, merge with local, then push back.
 
-    Uses huggingface_hub.HfApi.upload_folder. Requires `huggingface-cli login`
-    or HF_TOKEN env var. Best-effort; logs warnings on failure.
+    This enables distributed training where multiple servers can safely
+    contribute results without conflicts. Uses huggingface_hub.HfApi.
+    Requires `huggingface-cli login` or HF_TOKEN env var.
+    Best-effort; logs warnings on failure.
     """
     try:
         from huggingface_hub import HfApi
+        from huggingface_hub.utils import HfHubHTTPError
     except ImportError:
         logging.warning("huggingface_hub not installed; skipping push to hub")
         return
 
     api = HfApi()
+    results_path = output_dir / "replication_results.json"
+    
     try:
+        # Step 1: Pull latest results from HF Hub
+        logging.info(f"Pulling latest results from {repo_id}@{branch}")
+        try:
+            remote_results_content = api.hf_hub_download(
+                repo_id=repo_id,
+                repo_type="model",
+                filename="output/replication_results.json",
+                revision=branch,
+            )
+            with open(remote_results_content, 'r') as f:
+                remote_data = json.load(f)
+            logging.info(f"Downloaded remote results with {len(remote_data.get('results', {}))} keys")
+        except HfHubHTTPError as e:
+            if e.response.status_code == 404:
+                logging.info("No existing results in HF Hub, will create new")
+                remote_data = {"results": {}}
+            else:
+                raise
+        
+        # Step 2: Merge remote with local results
+        if results_path.exists():
+            with open(results_path, 'r') as f:
+                local_data = json.load(f)
+            
+            # Merge results: local takes precedence for conflicts
+            merged_results = remote_data.get("results", {})
+            for key, value in local_data.get("results", {}).items():
+                if key not in merged_results:
+                    merged_results[key] = {}
+                merged_results[key].update(value)
+            
+            # Recalculate means after merging
+            for key in merged_results:
+                fold_scores = [v["miou"] for k, v in merged_results[key].items() 
+                              if k.isdigit() and isinstance(v, dict) and "miou" in v]
+                if fold_scores:
+                    merged_results[key]["mean"] = {"miou": sum(fold_scores) / len(fold_scores)}
+            
+            # Save merged results locally
+            merged_data = {
+                "paper_hparams": local_data.get("paper_hparams", {}),
+                "results": merged_results,
+            }
+            with open(results_path, 'w') as f:
+                json.dump(merged_data, f, indent=2)
+            
+            logging.info(f"Merged results: {len(merged_results)} total keys")
+        
+        # Step 3: Push merged results to HF Hub
         logging.info(f"Uploading {output_dir} to {repo_id}@{branch}")
         api.upload_folder(
             repo_id=repo_id,
             repo_type="model",
             folder_path=str(output_dir),
             path_in_repo="output",
-            commit_message="Update output artifacts",
+            commit_message="Update output artifacts (merged from distributed training)",
             revision=branch,
         )
         logging.info("Upload to Hugging Face completed")
@@ -156,8 +221,8 @@ def main() -> None:
         "pascal5i": {
             "train_episodes": 20000,
             "val_episodes": 2000,
-            "epochs": 30,
-            "batch_size": 32,  # Doubled from 16
+            "epochs": 15,
+            "batch_size": 16,  # Doubled from 16
             "base_lr": 0.002,  # Scaled proportionally with batch size (was 0.002)
             "crop_size": 473,
             "num_workers": 4,
@@ -167,7 +232,7 @@ def main() -> None:
             "train_episodes": 20000,
             "val_episodes": 2000,
             "epochs": 15,
-            "batch_size": 16,  # Doubled from 8
+            "batch_size": 8,  # Doubled from 8
             "base_lr": 0.005,  # Scaled proportionally with batch size (was 0.005)
             "crop_size": 641,
             "num_workers": 4,
@@ -185,10 +250,12 @@ def main() -> None:
             paper_hparams[d]["batch_size"] = 2
             paper_hparams[d]["num_workers"] = 0
 
-    datasets = ["pascal5i", "coco20i"]
-    backbones = ["resnet50", "resnet101"]
-    shots_list = [1, 5]
-    folds = [0, 1, 2, 3]
+    datasets = args.datasets if args.datasets else ["pascal5i", "coco20i"]
+    backbones = args.backbones if args.backbones else ["resnet50", "resnet101"]
+    shots_list = args.shots if args.shots else [1, 5]
+    folds = args.folds if args.folds else [0, 1, 2, 3]
+    
+    logging.info(f"Running with: datasets={datasets}, backbones={backbones}, shots={shots_list}, folds={folds}")
 
     results: Dict[str, Dict[str, Dict[str, float]]] = {}
     results_path = output_dir / "replication_results.json"

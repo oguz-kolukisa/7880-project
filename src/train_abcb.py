@@ -324,6 +324,16 @@ def train_abcb(
             epoch_loss_sum += last_loss
             cur_iter += 1
             total_steps += 1
+            
+            # Debug: Log prediction statistics periodically
+            if total_steps % 50 == 0 or total_steps == 1:
+                with torch.no_grad():
+                    pred = out["P_list"][-1].argmax(dim=1)
+                    fg_ratio = (pred == 1).float().mean().item()
+                    gt_processed = query_mask[:, 0] if query_mask.dim() == 4 else query_mask
+                    gt_fg_ratio = (gt_processed > 0.5).float().mean().item()
+                    logging.debug(f"Step {total_steps}: loss={last_loss:.4f}, pred_fg={fg_ratio:.3f}, gt_fg={gt_fg_ratio:.3f}")
+            
             step_pbar.set_postfix(loss=f"{last_loss:.4f}")
 
         step_pbar.close()

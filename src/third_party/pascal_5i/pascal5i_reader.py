@@ -103,7 +103,10 @@ class Pascal5iReader(torchvision.datasets.vision.VisionDataset):
         # Given an index of an image, this dict returns list of classes in the image
         self.img_class_map = {}
         
-        saved_metadata_path = f"dataset_{fold}_{train}.pt"
+        # Save metadata cache in the dataset root directory
+        cache_dir = os.path.join(root, '.cache')
+        os.makedirs(cache_dir, exist_ok=True)
+        saved_metadata_path = os.path.join(cache_dir, f"pascal5i_fold{fold}_{'train' if train else 'val'}.pt")
         
         if os.path.exists(saved_metadata_path):
             logging.debug('Using saved class mapping')
