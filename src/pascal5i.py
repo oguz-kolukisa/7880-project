@@ -16,8 +16,13 @@ from src.third_party.pascal_5i.pascal5i_reader import Pascal5iReader
 
 def download_pascal5i(root: str, image_set: str = "train") -> None:
     """Download SBD and VOC2012 data required for PASCAL-5i."""
+    import tarfile
+    import urllib.request
+    
     root_path = Path(root)
     root_path.mkdir(parents=True, exist_ok=True)
+    
+    # Download SBD
     sbd_path = root_path / "sbd"
     sbd_path.mkdir(parents=True, exist_ok=True)
     sbd_ready = (sbd_path / "cls").exists() and (sbd_path / "img").exists()
@@ -28,13 +33,26 @@ def download_pascal5i(root: str, image_set: str = "train") -> None:
             mode="segmentation",
             download=True,
         )
+    
+    # Download VOC2012 from mirror
     voc_root = root_path / "VOCdevkit" / "VOC2012"
     if not voc_root.exists():
-        torchvision.datasets.VOCSegmentation(
-            str(root_path),
-            image_set="trainval",
-            download=True,
-        )
+        voc_url = "https://data.brainchip.com/dataset-mirror/voc/VOCtrainval_11-May-2012.tar"
+        voc_tar = root_path / "VOCtrainval_11-May-2012.tar"
+        
+        if not voc_tar.exists():
+            print(f"Downloading VOC2012 from {voc_url}...")
+            urllib.request.urlretrieve(voc_url, voc_tar)
+            print(f"Downloaded to {voc_tar}")
+        
+        print(f"Extracting {voc_tar}...")
+        with tarfile.open(voc_tar, "r") as tar:
+            tar.extractall(root_path)
+        print(f"Extracted VOC2012 to {root_path / 'VOCdevkit'}")
+        
+        # Clean up tar file
+        voc_tar.unlink()
+        print("Removed tar file")
 
 
 class Pascal5iDataset(Dataset):
