@@ -215,13 +215,13 @@ This implementation makes several design choices and assumptions not explicitly 
 
 ### Data Processing Assumptions
 
-1. **ImageNet Normalization**: Input images are normalized using ImageNet mean [0.485, 0.456, 0.406] and std [0.229, 0.224, 0.225]. The paper mentions using ImageNet-pretrained backbones but does not explicitly state the normalization scheme.
+- Inputs are normalized using ImageNet statistics to align with the pretrained backbone, even though the paper does not explicitly state the normalization parameters.
 
-2. **Random Crop Behavior**: During training, random crops of size 473×473 (PASCAL) or 641×641 (COCO) are applied after random scaling. The paper specifies crop sizes but not the exact cropping strategy when images are smaller than the crop size.
+- Training uses random scaling followed by cropping to a fixed resolution (473×473 on PASCAL; 641×641 on COCO); the paper gives the crop sizes but leaves the handling of smaller resized images unspecified.
 
-3. **Validation Augmentation**: Validation uses deterministic resizing to crop size without random augmentation, keeping normalization. The paper does not detail validation preprocessing.
+- Validation removes stochasticity: inputs are resized deterministically to the same resolution and only normalization is retained.
 
-4. **Binary Mask Construction**: Support and query masks are constructed as (mask == class_id) for multi-class datasets. For datasets with instance annotations, all instances of the target class are merged into a single binary mask.
+- Ground-truth labels are converted into a single binary mask for the target class; when multiple instances are present, they are combined into one foreground region.
 
 ### Training Assumptions
 
@@ -548,7 +548,8 @@ Full training (70 epochs × 20,000 episodes) has been completed for both 1-shot 
 
 ![1-shot Examples](images/examples_1shot.png)
 
-*Figure: Segmentation results for the 1-shot model on four randomly selected validation examples. Each row shows: (1) Support image with ground truth mask overlay, (2) Query image to segment (unfiltered, properly denormalized), (3) Ground truth mask (green overlay), (4) Predicted mask (blue overlay), (5) Comparison overlay where green = ground truth only, red = prediction only, yellow = correct overlap.*
+***Figure:** Qualitative segmentation outputs of the **1-shot** model on four randomly chosen validation samples. Each row contains: **(1)** the support image with the ground-truth mask overlaid, **(2)** the corresponding query image to be segmented (shown unfiltered and correctly de-normalized), **(3)** the ground-truth mask overlay (green), **(4)** the model prediction overlay (blue), and **(5)** an error visualization overlay where **green** denotes ground-truth-only regions (false negatives), **red** denotes prediction-only regions (false positives), and **yellow** indicates correctly predicted overlap.*
+
 
 **Analysis of 1-shot Results:**
 
