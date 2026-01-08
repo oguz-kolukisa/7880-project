@@ -105,10 +105,9 @@ The paper's innovation centers on **treating background context bias as a correc
 
 - **Dual-stream attention design:** Separates the process of extracting context information (using background query features and evolution patterns) from the process of applying corrections (via cross-attention on support features).
 
-- **Confidence-aware denoising:** Confidence-aware denoising incorporates the model’s uncertainty directly into feature refinement: high-confidence, reliable regions guide the denoising updates, while low-confidence regions are down-weighted so they do not introduce additional noise.
+- **Confidence-aware denoising**: Feature updates are gated by prediction confidence. High-confidence pixels drive the refinement, while low-confidence regions contribute minimally to avoid amplifying noise.
 
-As a result, the model stays robust to large background variations without requiring any background-specific supervision, and it generalizes better across a broad range of few-shot segmentation scenarios.
-
+This makes the method robust to large background shifts without any explicit background supervision, improving transfer across varied few-shot segmentation conditions.
 ---
 
 # 2. The Method and Implementation
