@@ -163,41 +163,32 @@ This implementation makes several design choices and assumptions not explicitly 
 
 ### Data Processing Assumptions
 
-6. **ImageNet Normalization**: Input images are normalized using ImageNet mean [0.485, 0.456, 0.406] and std [0.229, 0.224, 0.225]. The paper mentions using ImageNet-pretrained backbones but does not explicitly state the normalization scheme.
+1. **ImageNet Normalization**: Input images are normalized using ImageNet mean [0.485, 0.456, 0.406] and std [0.229, 0.224, 0.225]. The paper mentions using ImageNet-pretrained backbones but does not explicitly state the normalization scheme.
 
-7. **Random Crop Behavior**: During training, random crops of size 473×473 (PASCAL) or 641×641 (COCO) are applied after random scaling. The paper specifies crop sizes but not the exact cropping strategy when images are smaller than the crop size.
+2. **Random Crop Behavior**: During training, random crops of size 473×473 (PASCAL) or 641×641 (COCO) are applied after random scaling. The paper specifies crop sizes but not the exact cropping strategy when images are smaller than the crop size.
 
-8. **Validation Augmentation**: Validation uses deterministic resizing to crop size without random augmentation, keeping normalization. The paper does not detail validation preprocessing.
+3. **Validation Augmentation**: Validation uses deterministic resizing to crop size without random augmentation, keeping normalization. The paper does not detail validation preprocessing.
 
-9. **Binary Mask Construction**: Support and query masks are constructed as (mask == class_id) for multi-class datasets. For datasets with instance annotations, all instances of the target class are merged into a single binary mask.
+4. **Binary Mask Construction**: Support and query masks are constructed as (mask == class_id) for multi-class datasets. For datasets with instance annotations, all instances of the target class are merged into a single binary mask.
 
 ### Training Assumptions
 
-10. **Learning Rate Scaling**: Base learning rate is not scaled with batch size in the default configuration (2e-3 for PASCAL, 5e-3 for COCO with batch sizes 16 and 8 respectively). The paper provides base LR values but does not discuss scaling strategies.
+1. **Learning Rate Scaling**: Base learning rate is not scaled with batch size in the default configuration (2e-3 for PASCAL, 5e-3 for COCO with batch sizes 16 and 8 respectively). The paper provides base LR values but does not discuss scaling strategies.
 
-11. **Polynomial LR Schedule Parameters**: The polynomial learning rate decay uses power=0.9 as per the paper, with final learning rate going to 0 by the end of training.
+2. **Polynomial LR Schedule Parameters**: The polynomial learning rate decay uses power=0.9 as per the paper, with final learning rate going to 0 by the end of training.
 
-12. **Optimizer Initialization**: SGD optimizer is initialized with momentum=0.9 and weight_decay=1e-4 as stated in the paper. No learning rate warmup is used (not mentioned in paper).
+3. **Optimizer Initialization**: SGD optimizer is initialized with momentum=0.9 and weight_decay=1e-4 as stated in the paper. No learning rate warmup is used (not mentioned in paper).
 
-13. **Episode Sampling**: Training episodes are sampled randomly with the same random seed (0) for reproducibility. The paper specifies episode counts but not the sampling strategy.
+4. **Episode Sampling**: Training episodes are sampled randomly with the same random seed (0) for reproducibility. The paper specifies episode counts but not the sampling strategy.
 
 ### Evaluation Assumptions
 
-14. **IoU Computation**: Binary IoU is computed from logits using threshold 0 (positive logits = foreground). The paper reports mIoU but does not specify the binarization threshold.
+1. **IoU Computation**: Binary IoU is computed from logits using threshold 0 (positive logits = foreground). The paper reports mIoU but does not specify the binarization threshold.
 
-15. **COCO Mask Generation**: For COCO-20^i, binary segmentation masks are automatically generated from instance annotations and cached to disk. The paper uses COCO-20^i but does not describe mask preparation in detail.
+2. **COCO Mask Generation**: For COCO-20^i, binary segmentation masks are automatically generated from instance annotations and cached to disk. The paper uses COCO-20^i but does not describe mask preparation in detail.
 
-16. **Fold Assignment**: Class-to-fold assignment follows the standard PASCAL-5^i and COCO-20^i splits established in prior work (e.g., PANet, HSNet). The paper references these benchmarks without reproducing the split details.
+3. **Fold Assignment**: Class-to-fold assignment follows the standard PASCAL-5^i and COCO-20^i splits established in prior work (e.g., PANet, HSNet). The paper references these benchmarks without reproducing the split details.
 
-### Implementation-Specific Details
-
-17. **PyTorch DataLoader Configuration**: num_workers=4 and pin_memory=True are used for data loading efficiency. Debug mode sets num_workers=0 to avoid multiprocessing issues.
-
-18. **Device Handling**: All tensors are moved to the specified device (cuda/cpu) at the start of training. Mixed precision training is not used (not mentioned in paper).
-
-19. **Checkpoint Format**: Model checkpoints save state_dict only, not the entire model object. Training metrics are saved separately in JSON format.
-
-20. **Iteration Count during Inference**: Inference uses the same T=3 iterations as training. The paper does not discuss whether iteration count could be adjusted at test time.
 
 These assumptions were made based on common practices in few-shot segmentation literature, standard PyTorch conventions, and implementation details from similar methods. Any deviation from the paper's intended design may affect the reproducibility of results.
 
