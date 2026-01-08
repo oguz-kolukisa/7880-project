@@ -2,54 +2,109 @@
 
 This readme file is an outcome of the [CENG7880 (Fall 2025)](https://metu-trai.github.io/) project for reproducing a paper which does not have an implementation. See [CENG501 (Spring 2021) Project List](https://github.com/metu-trai/Projects2025) for a complete list of all paper reproduction projects.
 
+---
+
+## TL;DR
+
+- **What's Implemented**: Complete ABCB architecture with Query Prediction, Support Modulation, and Information Cleansing modules; iterative refinement (T=3); ResNet-50/101 backbones; PASCAL-5^i and COCO-20^i datasets with automatic mask generation
+- **What's Trained**: COCO-20^i with ResNet-50 for both 1-shot and 5-shot (70 epochs × 20,000 episodes, ~160 GPU hours  on fold 0)
+- **Results**: 1-shot: 13.36% best mIoU | 5-shot: 21.67% best mIoU (single fold)
+- **Difference from Paper**: Paper reports 45.6% for 1-shot (4-fold mean); current single-fold results are lower, likely due to undocumented implementation details
+- **Code Status**: Fully modular and ready for training all configurations (PASCAL/COCO, ResNet-50/101, 1/5-shot, all folds)
+---
+
+## Table of Contents
+
+1. [Introduction](#1-introduction)
+   - [Background Context Bias Problem](#background-context-bias-problem)
+   - [The Proposed Solution](#the-proposed-solution)
+   - [Paper Summary](#11-paper-summary)
+2. [The Method and Implementation](#2-the-method-and-implementation)
+   - [The Original Method](#21-the-original-method)
+   - [Implementation Details and Assumptions](#22-implementation-details-and-assumptions)
+3. [Experiments and Results](#3-experiments-and-results)
+   - [Experimental Setup](#31-experimental-setup)
+   - [How to Run the Code](#32-how-to-run-the-code)
+   - [Data Layout](#data-layout)
+   - [Quick Start Recipes](#quick-start-recipes)
+   - [Results](#33-results)
+4. [Conclusion](#4-conclusion)
+5. [References](#5-references)
+6. [Contact](#contact)
+
+---
+
 # 1. Introduction
 
-Few-shot semantic segmentation (FSS) aims to segment objects in novel categories using only a small number of annotated support examples. This challenging task requires the model to generalize quickly from limited supervision while accurately identifying object boundaries in query images. Despite significant progress in recent years, existing FSS methods face a critical limitation: they fail to adequately address the **background context bias** problem.
+Few-shot semantic segmentation (FSS) enables neural networks to segment objects from novel categories using only a handful of labeled examples—typically 1 or 5 support images with corresponding masks. This capability is critical for real-world applications where exhaustive annotation is impractical, such as medical imaging, autonomous driving, and robotic perception. The challenge lies in learning a model that can rapidly adapt to new object categories while maintaining precise segmentation boundaries, all from minimal supervision.
 
-## Background Context Bias Problem
+## The Background Context Bias Problem
 
-The background context bias arises when support and query images contain significantly different background contexts. Traditional FSS methods typically extract features from support images and use them to guide query segmentation. However, these features are inevitably influenced by the background context in the support images. When the query image has a different background, the guidance features become misaligned with the query foreground features, leading to poor segmentation performance.
+Despite recent advances in FSS, a fundamental limitation persists: **background context bias**. This phenomenon occurs when the background scenes in support and query images differ substantially, causing severe feature misalignment. 
 
-For example, if a support image shows a dog on grass while the query image shows a dog on a beach, the background context difference causes the extracted foreground features to be inconsistent, even though both images contain the same object category. This misalignment significantly degrades segmentation accuracy, especially in challenging real-world scenarios where background variations are common.
+Traditional FSS methods extract prototype features from support images (regions marked as foreground by the provided masks) and use these prototypes to guide query image segmentation. However, these features are contaminated by the surrounding background context during CNN feature extraction due to the receptive field overlap. When a query image presents a different background—for instance, a dog photographed on grass in the support set versus the same breed on a beach in the query—the foreground features become inconsistent even for the same object category.
 
-## The Proposed Solution
+**Concrete Example:** Consider segmenting cats across different environments. A support image shows a cat indoors on a carpet, while the query shows a cat outdoors on concrete. The CNN features for "cat foreground pixels" in the support image are influenced by indoor textures and lighting. When these features guide query segmentation, they fail to properly activate on the outdoor cat because the contextual cues (lighting, texture, color palette) don't match. This mismatch leads to undersegmentation or complete failure.
 
-This paper introduces an **iterative modulation framework** that addresses background context bias through three key components executed recursively:
+This problem is pervasive in few-shot learning but has been largely overlooked by prior work, which assumes feature extractors can produce context-invariant foreground representations—an assumption that breaks down in practice.
 
-1. **Query Prediction (QP)**: Generates segmentation masks using guidance features from support images
-2. **Support Modulation (SM)**: Aligns support and query foreground features by analyzing query evolution patterns and using cross-attention mechanisms to reduce background-induced misalignment
-3. **Information Cleansing (IC)**: Removes accumulated noise from modulated features using confidence-biased attention, ensuring cleaner guidance for subsequent iterations
+## The Proposed Solution: Iterative Modulation
 
-Through iterative refinement over T=3 iterations, the method progressively improves feature alignment and prediction quality, achieving state-of-the-art performance on PASCAL-5^i and COCO-20^i benchmarks.
+The ABCB paper addresses this bias through an **iterative modulation framework** with three synergistic components:
+
+1. **Query Prediction (QP)**: Generates initial segmentation masks using current support guidance features, producing progressively refined predictions across iterations.
+
+2. **Support Modulation (SM)**: Dynamically aligns support features with query-specific contexts by analyzing **query evolution patterns**—how query features transform from input-level representations to deep CNN features. This evolution reveals which aspects of the query foreground are stable versus context-dependent, enabling targeted support feature adjustment via cross-attention mechanisms.
+
+3. **Information Cleansing (IC)**: Removes noise accumulated during support modulation using **confidence-biased attention**. By identifying low-confidence regions in predictions (via entropy analysis), this module filters out unreliable features before they propagate to the next iteration.
+
+The framework operates over **T=3 iterations**, where each cycle refines both the predicted mask and the guidance features. This iterative design allows the network to progressively reduce background-induced misalignment, improving segmentation accuracy with each pass.
+
+**Key Insight:** Rather than attempting to learn background-invariant features directly (which is intractable), the method explicitly models how background context affects features and corrects for this bias through iterative refinement. The use of query evolution analysis and confidence-based denoising ensures the correction process is both precise and stable.
 
 ## 1.1. Paper Summary
 
-The paper makes several important contributions to few-shot segmentation:
+**Publication:** *IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR 2024)*  
+**Authors:** Zhu, H., et al.
 
 ### Key Contributions
 
-1. **Problem Identification**: Identifies and formalizes the background context bias problem, which has been overlooked by previous FSS methods despite being a major source of performance degradation.
+1. **Formalization of Background Context Bias**  
+   The paper provides the first systematic analysis of how background context differences between support and query images cause feature misalignment in FSS, including quantitative ablation studies demonstrating the severity of this issue.
 
-2. **Iterative Refinement Framework**: Proposes a novel three-stage iterative framework that progressively refines segmentation through query prediction, support modulation, and information cleansing.
+2. **Iterative Modulation Architecture**  
+   Introduces a three-stage iterative framework (Query Prediction → Support Modulation → Information Cleansing) that explicitly addresses context bias through feature alignment rather than relying solely on discriminative learning.
 
-3. **Query Evolution Analysis**: Introduces the concept of analyzing how query features evolve from input to deep representations, capturing both pixel-wise and structure-wise changes to better understand background influence.
+3. **Query Evolution Mechanism**  
+   Proposes a novel method to capture how query features evolve through the network, decomposing evolution into:
+   - **Pixel-wise evolution** ($E_p$): Changes in individual feature vectors from input to deep layers
+   - **Structure-wise evolution** ($E_s$): Changes in pairwise feature relationships captured via histogram-based affinity analysis
+   
+   These evolution features serve as context-aware guidance for support modulation.
 
-4. **Confidence-Biased Denoising**: Develops a confidence-biased attention mechanism that identifies and removes noise accumulated during support modulation, preventing error propagation across iterations.
+4. **Confidence-Biased Information Cleansing**  
+   Develops an entropy-based confidence mechanism that identifies uncertain predictions and uses these confidence maps to weight attention during feature denoising, preventing error accumulation across iterations.
 
-5. **State-of-the-Art Performance**: Achieves superior results on two widely-used benchmarks:
-   - **PASCAL-5^i**: Outperforms previous methods across all folds and shot settings
-   - **COCO-20^i**: Demonstrates strong generalization to more complex datasets with higher object diversity
+5. **State-of-the-Art Performance**  
+   Achieves State-of-the-Art on few-shot segmentation datasets:
+   - **PASCAL-5^i**: Consistent improvements across all 4 folds in both 1-shot and 5-shot settings
+   - **COCO-20^i**: Strong performance on the more challenging 80-class dataset with 4-fold cross-validation
+   
+   Demonstrates particular strength in scenarios with high background diversity.
 
 ### Technical Novelty
 
-The method's innovation lies in its iterative approach to handling background context bias. Unlike prior works that perform feature extraction and segmentation in a single forward pass, this method:
+The paper's innovation centers on **treating background context bias as a correctable misalignment** rather than an unavoidable noise source. Key technical distinctions from prior work:
 
-- Iteratively updates guidance features using current predictions
-- Explicitly models query evolution to understand background influence
-- Uses multi-head cross-attention to align support features with query-specific contexts
-- Employs entropy-based confidence maps to identify and correct prediction errors
+- **Explicit modeling of context influence:** Uses query evolution analysis to quantify how much background context affects features, rather than hoping learned features will be inherently robust.
 
-The iterative design allows the network to progressively reduce alignment errors and improve segmentation quality with each iteration, making it particularly effective in challenging scenarios with large background variations.
+- **Iterative refinement with feedback:** Each iteration uses the current prediction to identify which support features need adjustment, enabling targeted corrections rather than global feature transformations.
+
+- **Dual-stream attention design:** Separates the process of extracting context information (using background query features and evolution patterns) from the process of applying corrections (via cross-attention on support features).
+
+- **Confidence-aware denoising:** Incorporates prediction uncertainty directly into the feature refinement process, ensuring high-confidence regions guide corrections while low-confidence regions don't introduce additional noise.
+
+This architecture enables the model to handle significant background variations without requiring background-specific supervision, making it broadly applicable to diverse few-shot segmentation scenarios.
 
 ---
 
@@ -249,6 +304,103 @@ pip install -r requirements.txt
 
 Required packages include: torch, torchvision, numpy, Pillow, scipy, tqdm, huggingface_hub (optional)
 
+### Data Layout
+
+Expected folder structure after dataset preparation:
+
+```
+data/
+├── coco/
+│   ├── images/
+│   │   ├── train2017/          # COCO train images
+│   │   │   ├── 000000000009.jpg
+│   │   │   └── ...
+│   │   └── val2017/            # COCO val images
+│   │       ├── 000000000139.jpg
+│   │       └── ...
+│   ├── annotations/
+│   │   ├── instances_train2017.json
+│   │   └── instances_val2017.json
+│   ├── masks/                  # Auto-generated binary masks (cached)
+│   │   ├── train2017/
+│   │   └── val2017/
+│   └── coco20i_fold0_train.pt  # Cached class maps per fold/split
+│
+├── VOCdevkit/
+│   └── VOC2012/
+│       ├── JPEGImages/         # PASCAL images
+│       ├── SegmentationClass/  # Segmentation masks
+│       └── ImageSets/
+│           └── Segmentation/
+│               ├── train.txt
+│               └── val.txt
+│
+└── sbd/                        # SBD (Semantic Boundaries Dataset)
+    ├── img/
+    ├── cls/
+    └── train.txt
+```
+
+**Notes:**
+- COCO masks are auto-generated from instance annotations on first run and cached
+- PASCAL-5^i uses VOC2012 + SBD for extended training data
+- Cached `.pt` files (class maps) speed up subsequent runs
+
+### Quick Start Recipes
+
+**Recipe 1: Prepare datasets only (no training)**
+```bash
+python src/replicate_abcb.py \
+  --download \
+  --prepare-only \
+  --data-root ./data
+```
+
+**Recipe 2: Train COCO-20^i ResNet-50 1-shot (fold 0 only)**
+```bash
+python src/replicate_abcb.py \
+  --datasets coco20i \
+  --backbones resnet50 \
+  --shots 1 \
+  --folds 0 \
+  --data-root ./data \
+  --output-dir ./output \
+  --device cuda
+```
+
+**Recipe 3: Train COCO-20^i ResNet-50 5-shot (all 4 folds)**
+```bash
+python src/replicate_abcb.py \
+  --datasets coco20i \
+  --backbones resnet50 \
+  --shots 5 \
+  --folds 0 1 2 3 \
+  --data-root ./data \
+  --output-dir ./output \
+  --device cuda
+```
+
+**Recipe 4: Evaluate existing checkpoints only (no training)**
+```bash
+python src/replicate_abcb.py \
+  --eval-only \
+  --data-root ./data \
+  --output-dir ./output \
+  --device cuda
+```
+
+**Recipe 5: Quick debug run (1 epoch, 4 episodes)**
+```bash
+python src/replicate_abcb.py \
+  --debug \
+  --datasets coco20i \
+  --backbones resnet50 \
+  --shots 1 \
+  --folds 0 \
+  --data-root ./data \
+  --output-dir ./output
+```
+
 2. **Prepare Datasets**:
 
 Option A - Download using the script:
@@ -356,6 +508,15 @@ The script automatically:
 To force retraining, delete the relevant checkpoint or result entry.
 
 ## 3.3. Results
+
+### Paper vs Replication Comparison
+
+| Setting | Paper (4-fold mean) | Replication (fold 0 only) |
+|---------|---------------------|---------------------------|
+| **1-shot** | 45.6% mIoU | 13.36% mIoU (best epoch 36) |
+| **5-shot** | 58.3% mIoU | 21.67% mIoU (best epoch 21) |
+
+**Important Note**: Paper results represent the mean across all 4 folds, while replication results are for fold 0 only due to computational constraints. The significant performance gap suggests potential implementation differences or insufficient training convergence for this particular fold.
 
 ### Paper Results (COCO-20^i, ResNet-50, 1-shot)
 
@@ -562,6 +723,39 @@ The observed training dynamics (steady convergence, 5-shot superiority, mid-trai
    Min, J., Kang, D., & Cho, M. (2021). "Hypercorrelation Squeeze for Few-Shot Segmentation." *IEEE/CVF International Conference on Computer Vision (ICCV)*.
 
 6. **PyTorch**: Paszke, A., et al. (2019). "PyTorch: An Imperative Style, High-Performance Deep Learning Library." *Advances in Neural Information Processing Systems (NeurIPS)*.
+
+---
+
+## BibTeX
+
+```bibtex
+@inproceedings{lin2014microsoft,
+  title={Microsoft COCO: Common Objects in Context},
+  author={Lin, Tsung-Yi and Maire, Michael and Belongie, Serge and Hays, James and Perona, Pietro and Ramanan, Deva and Doll{\'a}r, Piotr and Zitnick, C Lawrence},
+  booktitle={European Conference on Computer Vision (ECCV)},
+  pages={740--755},
+  year={2014},
+  organization={Springer}
+}
+
+@inproceedings{everingham2010pascal,
+  title={The PASCAL Visual Object Classes (VOC) Challenge},
+  author={Everingham, Mark and Van Gool, Luc and Williams, Christopher KI and Winn, John and Zisserman, Andrew},
+  booktitle={International Journal of Computer Vision},
+  volume={88},
+  number={2},
+  pages={303--338},
+  year={2010}
+}
+
+@inproceedings{min2021hypercorrelation,
+  title={Hypercorrelation Squeeze for Few-Shot Segmentation},
+  author={Min, Juhong and Kang, Dahyun and Cho, Minsu},
+  booktitle={IEEE/CVF International Conference on Computer Vision (ICCV)},
+  pages={6941--6952},
+  year={2021}
+}
+```
 
 ---
 
