@@ -660,26 +660,6 @@ Since the project did not include full training across all settings, the optimal
 
 
 
-## Recommendations for Future Work
-
-To achieve results comparable to the paper and further improve the implementation:
-
-1. **Complete Multi-Fold Training**: Train all 4 folds for both COCO-20^i and PASCAL-5^i to compute proper cross-fold mean mIoU as reported in the paper
-
-2. **Explore Both Backbones**: Train ResNet-101 backbone to compare with ResNet-50 results and assess whether deeper features improve performance
-
-3. **Early Stopping Strategy**: Implement validation-based early stopping or checkpoint selection to prevent overfitting, as best performance consistently occurs mid-training
-
-4. **Backbone Training Strategy**: Compare frozen vs. trainable backbone approaches to determine optimal transfer learning strategy
-
-5. **Learning Rate Schedules**: Experiment with cosine annealing, warmup strategies, or step decay as alternatives to polynomial decay
-
-6. **Ablation Studies**: Systematically evaluate the contribution of each component (QP, SM, IC) and each iteration to understand which elements provide the most benefit
-
-7. **Data Preprocessing Analysis**: Verify that mask generation, class splits, and augmentation strategies exactly match the paper's approach
-
-8. **Ensemble Methods**: Explore model ensembling or test-time augmentation to boost performance
-
 ## Conclusion Remarks
 
 This implementation successfully replicates the ABCB architecture with all three key components (Query Prediction, Support Modulation, Information Cleansing) and completes the full 70-epoch training protocol specified in the paper. The codebase provides a complete, modular, and extensible framework for few-shot semantic segmentation research.
