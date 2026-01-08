@@ -9,6 +9,7 @@ This readme file is an outcome of the [CENG7880 (Fall 2025)](https://metu-trai.g
 - **What's Implemented**: Complete ABCB architecture with Query Prediction, Support Modulation, and Information Cleansing modules; iterative refinement (T=3); ResNet-50/101 backbones; PASCAL-5^i and COCO-20^i datasets with automatic mask generation
 - **What's Trained**: COCO-20^i with ResNet-50 for both 1-shot and 5-shot (70 epochs × 20,000 episodes, ~160 GPU hours on fold 0)
 - **Results**: 1-shot: 13.36% best mIoU | 5-shot: 21.67% best mIoU (single fold)
+- **Trained Models**: Pre-trained model checkpoints available in the `models/` directory
 - **Difference from Paper**: Paper reports 45.6% for 1-shot (4-fold mean); current single-fold results are lower, likely due to undocumented implementation details
 - **Code Status**: Fully modular and ready for training all configurations (PASCAL/COCO, ResNet-50/101, 1/5-shot, all folds)
 ---
@@ -494,6 +495,8 @@ output/
     │   └── training_metrics.json
     └── ...
 ```
+
+**Note:** Pre-trained model checkpoints from this replication study are available in the `models/` directory.
 
 ### Resume Training
 
