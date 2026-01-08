@@ -203,21 +203,15 @@ The feature $S_{\text{IC}}^{t}$ is passed forward as the new guidance $S_{\text{
 This implementation makes several design choices and assumptions not explicitly specified in the paper:
 
 ### Architecture Assumptions
+- The ResNet-50/101 backbone is not frozen and is updated during training; the paper does not state whether fine-tuning is required.
 
-1. **Trainable Backbone**: The backbone (ResNet-50/101) is kept trainable rather than frozen. The paper does not explicitly state whether the backbone should be frozen, but keeping it trainable allows the model to adapt features to the few-shot segmentation task.
+- BatchNorm layers use default PyTorch mode switching (train/eval), since no alternative strategy is specified.
 
-2. **Batch Normalization Mode**: BatchNorm layers in the backbone remain in their default PyTorch mode (switching between train/eval based on model.train()/model.eval()). The paper does not specify special handling for BatchNorm.
+- Support Modulation uses 4 attention heads, as the paper does not define a head count.
 
-3. **Multi-Head Attention Configuration**: Support Modulation uses 4-head attention. The paper mentions multi-head attention but does not specify the number of heads.
+- To control memory, token counts are limited to 1024 support, 512 foreground, and 512 background tokens; excess tokens are handled by random sampling (not discussed in the paper).
 
-4. **Token Limits**: To prevent memory overflow with large images or many foreground pixels, the implementation caps:
-   - Maximum support tokens: 1024
-   - Maximum foreground tokens: 512  
-   - Maximum background tokens: 512
-   
-   When token counts exceed these limits, random sampling is used. The paper does not discuss token limiting strategies.
-
-5. **Feature Projection Dimension**: All backbone features are projected to 256 dimensions. While the paper shows 256-d in the architecture diagram, the exact projection mechanism is not fully detailed.
+- All backbone features are projected to a 256-d representation; while the figure suggests 256-d, projection specifics are left implicit.
 
 ### Data Processing Assumptions
 
