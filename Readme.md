@@ -582,7 +582,8 @@ The 5-shot model shows notable improvements over 1-shot:
 
 3. **Reduced False Positives**: The additional support examples help the model build more robust prototypes, reducing false positive predictions in background regions. The cross-validation across multiple supports improves discrimination.
 
-4. **Higher IoU Scores**: Quantitatively, the 5-shot model achieves consistently higher IoU scores, validating the expected benefit of additional support examples. However, the absolute performance still indicates substantial room for improvement.
+4. **Higher IoU Scores**: The 5-shot model delivers consistently stronger IoU scores, quantitatively confirming the expected advantage of having more support examples. That said, the overall IoU levels remain modest, suggesting there is still significant headroom for improvement.
+
 
 **Overall Observations:**
 
