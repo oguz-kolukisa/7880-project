@@ -36,31 +36,32 @@ This readme file is an outcome of the [CENG7880 (Fall 2025)](https://metu-trai.g
 
 # 1. Introduction
 
-Few-shot semantic segmentation (FSS) enables neural networks to segment objects from novel categories using only a handful of labeled examples—typically 1 or 5 support images with corresponding masks. This capability is critical for real-world applications where exhaustive annotation is impractical, such as medical imaging, autonomous driving, and robotic perception. The challenge lies in learning a model that can rapidly adapt to new object categories while maintaining precise segmentation boundaries, all from minimal supervision.
+Few-shot semantic segmentation (FSS) equips neural networks to segment objects from unseen categories using only a small number of annotated examples—commonly 1 or 5 support images paired with masks. This is especially valuable in settings where large-scale labeling is infeasible, including medical imaging, autonomous driving, and robotics. The core difficulty is enabling fast adaptation to new categories while still producing accurate, fine-grained segmentation boundaries under very limited supervision.
 
 ## The Background Context Bias Problem
 
-Despite recent advances in FSS, a fundamental limitation persists: **background context bias**. This phenomenon occurs when the background scenes in support and query images differ substantially, causing severe feature misalignment. 
+Although FSS has progressed substantially, a major bottleneck remains: **background context bias**. This occurs when the support and query images contain notably different backgrounds, which can cause substantial feature mismatch and degrade segmentation.
 
-Traditional FSS methods extract prototype features from support images (regions marked as foreground by the provided masks) and use these prototypes to guide query image segmentation. However, these features are contaminated by the surrounding background context during CNN feature extraction due to the receptive field overlap. When a query image presents a different background—for instance, a dog photographed on grass in the support set versus the same breed on a beach in the query—the foreground features become inconsistent even for the same object category.
+Most FSS approaches compute prototypes from the foreground regions of the support images (as specified by masks) and then use these prototypes to steer segmentation in the query image. However, because CNN features are influenced by surrounding pixels through receptive fields, foreground representations are often “mixed” with background context. When the query background differs from the support background, the resulting foreground features can shift—even when the object category is the same.
 
-**Concrete Example:** Consider segmenting cats across different environments. A support image shows a cat indoors on a carpet, while the query shows a cat outdoors on concrete. The CNN features for "cat foreground pixels" in the support image are influenced by indoor textures and lighting. When these features guide query segmentation, they fail to properly activate on the outdoor cat because the contextual cues (lighting, texture, color palette) don't match. This mismatch leads to undersegmentation or complete failure.
+**Illustrative example:** Suppose a support image contains a dog on grass, while the query image shows a dog on sand at the beach. Even though both contain the same type of foreground object, the extracted “dog” features in the support image may be affected by grass textures and lighting. As a result, those features may not align well with the dog in the beach scene, producing weak activation and segmentation errors.
+
+**Concrete scenario:** A cat appears indoors on carpet in the support set but outdoors on concrete in the query. The indoor cat’s foreground features can be shaped by the surrounding lighting and textures. When transferred to the query image, these features may fail to highlight the outdoor cat because the contextual cues differ, leading to partial masks or even complete failure.
 
 This problem is pervasive in few-shot learning but has been largely overlooked by prior work, which assumes feature extractors can produce context-invariant foreground representations—an assumption that breaks down in practice.
 
 ## The Proposed Solution: Iterative Modulation
+The ABCB approach mitigates background context bias through an **iterative modulation framework** composed of three complementary modules:
 
-The ABCB paper addresses this bias through an **iterative modulation framework** with three synergistic components:
+1. **Query Prediction (QP)**: Produces an initial segmentation mask from the current support-guided representation and refines the mask over successive iterations.
 
-1. **Query Prediction (QP)**: Generates initial segmentation masks using current support guidance features, producing progressively refined predictions across iterations.
+2. **Support Modulation (SM)**: Adjusts support features to better match the query’s context by **examining query evolution patterns**, how query representations change from shallow to deep network layers. This evolution helps distinguish stable foreground cues from context-sensitive ones, enabling more targeted support alignment (e.g., via cross-attention).
 
-2. **Support Modulation (SM)**: Dynamically aligns support features with query-specific contexts by analyzing **query evolution patterns**—how query features transform from input-level representations to deep CNN features. This evolution reveals which aspects of the query foreground are stable versus context-dependent, enabling targeted support feature adjustment via cross-attention mechanisms.
+3. **Information Cleansing (IC)**: Prevents error accumulation during modulation by filtering unreliable signals using **confidence-aware attention**. Low-confidence regions (often identified through entropy-based uncertainty) are suppressed so they do not contaminate the next iteration.
 
-3. **Information Cleansing (IC)**: Removes noise accumulated during support modulation using **confidence-biased attention**. By identifying low-confidence regions in predictions (via entropy analysis), this module filters out unreliable features before they propagate to the next iteration.
+The model runs for **T = 3 iterations**, and each cycle updates both the predicted mask and the guidance features. This repeated refinement progressively reduces context-driven feature mismatch, leading to more accurate segmentation.
 
-The framework operates over **T=3 iterations**, where each cycle refines both the predicted mask and the guidance features. This iterative design allows the network to progressively reduce background-induced misalignment, improving segmentation accuracy with each pass.
-
-**Key Insight:** Rather than attempting to learn background-invariant features directly (which is intractable), the method explicitly models how background context affects features and corrects for this bias through iterative refinement. The use of query evolution analysis and confidence-based denoising ensures the correction process is both precise and stable.
+**Key Idea:** RInstead of trying to learn perfectly background-invariant features (which is difficult and often unrealistic), the method explicitly accounts for how background context distorts representations and then corrects this distortion through iterative refinement. By combining query evolution analysis with confidence-guided denoising, the correction remains both targeted and stable across iterations.
 
 ## 1.1. Paper Summary
 
@@ -102,9 +103,9 @@ The paper's innovation centers on **treating background context bias as a correc
 
 - **Dual-stream attention design:** Separates the process of extracting context information (using background query features and evolution patterns) from the process of applying corrections (via cross-attention on support features).
 
-- **Confidence-aware denoising:** Incorporates prediction uncertainty directly into the feature refinement process, ensuring high-confidence regions guide corrections while low-confidence regions don't introduce additional noise.
+- **Confidence-aware denoising:** Directly integrates prediction uncertainty into feature refinement, so reliable (high-confidence) regions steer the correction process, while unreliable (low-confidence) areas are prevented from injecting additional noise.
 
-This architecture enables the model to handle significant background variations without requiring background-specific supervision, making it broadly applicable to diverse few-shot segmentation scenarios.
+This design allows the model to remain robust under substantial background variation without any background-specific supervision, improving generalization across a wide range of few-shot segmentation settings.
 
 ---
 
