@@ -656,7 +656,7 @@ Several hyperparameters may require tuning for optimal performance:
 - Batch size (8 for COCO) influences gradient stability and convergence
 - Crop size (641×641) determines spatial context availability
 
-Without full training, it's impossible to assess whether these choices are optimal. Additionally, due to the extensive training time required (80 hours per fold) and computational resource limitations, comprehensive hyperparameter optimization was not feasible within the project timeline. However, the codebase is fully implemented and ready for training across all configurations: both datasets (PASCAL-5^i and COCO-20^i), both backbones (ResNet-50 and ResNet-101), multiple shot settings (1-shot and 5-shot), and all four folds. The modular architecture supports easy experimentation with different hyperparameters including batch size, learning rate, crop size, token limits, attention heads, and augmentation strategies.
+Since the project did not include full training across all settings, the optimality of the selected design parameters remains unverified. Additionally, broad hyperparameter searches were not feasible because each fold requires substantial training time (approximately 80 hours) and compute availability was limited. Despite this, the training pipeline is fully implemented for all combinations of dataset (PASCAL-5^i, COCO-20^i), backbone (ResNet-50, ResNet-101), shot count (1, 5), and fold (1–4). The modular implementation facilitates controlled experimentation over batch size, learning rate, crop size, token budgets, attention configuration, and augmentation strategies.
 
 
 
