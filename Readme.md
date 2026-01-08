@@ -7,7 +7,7 @@ This readme file is an outcome of the [CENG7880 (Fall 2025)](https://metu-trai.g
 ## TL;DR
 
 - **What's Implemented**: Complete ABCB architecture with Query Prediction, Support Modulation, and Information Cleansing modules; iterative refinement (T=3); ResNet-50/101 backbones; PASCAL-5^i and COCO-20^i datasets with automatic mask generation
-- **What's Trained**: COCO-20^i with ResNet-50 for both 1-shot and 5-shot (70 epochs × 20,000 episodes, ~160 GPU hours  on fold 0)
+- **What's Trained**: COCO-20^i with ResNet-50 for both 1-shot and 5-shot (70 epochs × 20,000 episodes, ~160 GPU hours on fold 0)
 - **Results**: 1-shot: 13.36% best mIoU | 5-shot: 21.67% best mIoU (single fold)
 - **Difference from Paper**: Paper reports 45.6% for 1-shot (4-fold mean); current single-fold results are lower, likely due to undocumented implementation details
 - **Code Status**: Fully modular and ready for training all configurations (PASCAL/COCO, ResNet-50/101, 1/5-shot, all folds)
@@ -36,17 +36,17 @@ This readme file is an outcome of the [CENG7880 (Fall 2025)](https://metu-trai.g
 
 # 1. Introduction
 
-Few-shot semantic segmentation (FSS) considers the setting where a model must generate dense masks for categories not seen during training, using only a small support set—commonly 1-shot or 5-shot annotated image–mask pairs. This formulation is motivated by domains in which large-scale pixel annotation is impractical, including medical imaging, autonomous driving, and robotics. The fundamental difficulty is to infer class-specific cues from minimal supervision while retaining boundary-level accuracy.
+Few-shot semantic segmentation (FSS) considers the setting where a model must generate dense masks for categories not seen during training, using only a small support set commonly 1-shot or 5-shot annotated image–mask pairs. This formulation is motivated by domains in which large-scale pixel annotation is impractical, including medical imaging, autonomous driving, and robotics. The fundamental difficulty is to infer class-specific cues from minimal supervision while retaining boundary-level accuracy.
 
 ## The Background Context Bias Problem
 
 Although FSS has progressed substantially, a major bottleneck remains: **background context bias**. This occurs when the support and query images contain notably different backgrounds, which can cause substantial feature mismatch and degrade segmentation.
 
-Most FSS approaches compute prototypes from the foreground regions of the support images (as specified by masks) and then use these prototypes to steer segmentation in the query image. However, because CNN features are influenced by surrounding pixels through receptive fields, foreground representations are often “mixed” with background context. When the query background differs from the support background, the resulting foreground features can shift—even when the object category is the same.
+Most FSS approaches compute prototypes from the foreground regions of the support images (as specified by masks) and then use these prototypes to steer segmentation in the query image. However, because CNN features are influenced by surrounding pixels through receptive fields, foreground representations are often “mixed” with background context. When the query background differs from the support background, the resulting foreground features can shift even when the object category is the same.
 
 **Illustrative example:** Suppose a support image contains a dog on grass, while the query image shows a dog on sand at the beach. Even though both contain the same type of foreground object, the extracted “dog” features in the support image may be affected by grass textures and lighting. As a result, those features may not align well with the dog in the beach scene, producing weak activation and segmentation errors.
 
-**Concrete example:** Suppose a cat shown indoors on carpet in the support set but appearing outdoors on concrete in the query image. In the support image, the cat’s foreground representation can become entangled with the surrounding lighting and background textures. When that representation is transferred to the query image, it may no longer align with the outdoor appearance, causing weak activation on the target and resulting in incomplete masks—or, in the worst case, total segmentation failure.
+**Concrete example:** Suppose a cat shown indoors on carpet in the support set but appearing outdoors on concrete in the query image. In the support image, the cat’s foreground representation can become entangled with the surrounding lighting and background textures. When that representation is transferred to the query image, it may no longer align with the outdoor appearance, causing weak activation on the target and resulting in incomplete masks or, in the worst case, total segmentation failure.
 
 This issue is widespread in few-shot learning yet is often underemphasized in prior work, which implicitly assumes that the feature extractor yields context-invariant foreground features. In practice, that assumption frequently does not hold.
 
@@ -62,7 +62,7 @@ The ABCB approach mitigates background context bias through an **iterative modul
 
 The model is executed for **T = 3 refinement iterations**, where each iteration updates both the predicted mask and the associated guidance features. Through this repeated update cycle, the method progressively mitigates context-induced feature mismatch, yielding increasingly accurate segmentations.
 
-**Key idea:** Rather than attempting to learn perfectly background-invariant representations—which is often difficult and unrealistic—the approach explicitly models the way background context contaminates feature representations and then compensates for this effect via iterative refinement. By integrating query evolution analysis with confidence-guided denoising, the corrections remain focused and stable from one iteration to the next.
+**Key idea:** Rather than attempting to learn perfectly background-invariant representations which is often difficult and unrealistic the approach explicitly models the way background context contaminates feature representations and then compensates for this effect via iterative refinement. By integrating query evolution analysis with confidence-guided denoising, the corrections remain focused and stable from one iteration to the next.
 
 
 ## 1.1. Paper Summary
@@ -679,7 +679,7 @@ The achieved mIoU (21.67% best for 5-shot, 13.36% for 1-shot on single fold) rem
 - **Hyperparameter Space**: Limited exploration due to computational constraints
 
 **Lessons Learned:**
- The training behavior observed—stable convergence, consistently stronger 5-shot performance, and occasional mid-training performance peaks—suggests the implementation is functionally correct. The remaining performance gap emphasizes how critical complete implementation reporting is in research papers, and how difficult it can be to reproduce state-of-the-art results without access to the authors’ code. Finally, the heavy computational cost (over 160 GPU-hours for limited trials) highlights the practical importance of efficient hyperparameter search and the central role of compute availability in modern deep learning research.
+ The training behavior observed stable convergence, consistently stronger 5-shot performance, and occasional mid-training performance peaks suggests the implementation is functionally correct. The remaining performance gap emphasizes how critical complete implementation reporting is in research papers, and how difficult it can be to reproduce state-of-the-art results without access to the authors’ code. Finally, the heavy computational cost (over 160 GPU-hours for limited trials) highlights the practical importance of efficient hyperparameter search and the central role of compute availability in modern deep learning research.
 
 ---
 
