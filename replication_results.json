@@ -1,0 +1,42 @@
+{
+  "paper_hparams": {
+    "pascal5i": {
+      "train_episodes": 20000,
+      "val_episodes": 2000,
+      "epochs": 250,
+      "batch_size": 16,
+      "base_lr": 0.002,
+      "crop_size": 473,
+      "num_workers": 4,
+      "seed": 0
+    },
+    "coco20i": {
+      "train_episodes": 20000,
+      "val_episodes": 2000,
+      "epochs": 70,
+      "batch_size": 4,
+      "base_lr": 0.005,
+      "crop_size": 641,
+      "num_workers": 4,
+      "seed": 0
+    }
+  },
+  "results": {
+    "coco20i_resnet50_1shot": {
+      "0": {
+        "miou": 0.0884391779228005
+      },
+      "mean": {
+        "miou": 0.0884391779228005
+      }
+    },
+    "coco20i_resnet50_5shot": {
+      "0": {
+        "miou": 0.16605660475941295
+      },
+      "mean": {
+        "miou": 0.16605660475941295
+      }
+    }
+  }
+}
