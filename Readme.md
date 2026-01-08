@@ -108,6 +108,7 @@ The paper's innovation centers on **treating background context bias as a correc
 - **Confidence-aware denoising**: Feature updates are gated by prediction confidence. High-confidence pixels drive the refinement, while low-confidence regions contribute minimally to avoid amplifying noise.
 
 This makes the method robust to large background shifts without any explicit background supervision, improving transfer across varied few-shot segmentation conditions.
+
 ---
 
 # 2. The Method and Implementation
