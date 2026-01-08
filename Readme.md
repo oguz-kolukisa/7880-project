@@ -60,9 +60,10 @@ The ABCB approach mitigates background context bias through an **iterative modul
 
 3. **Information Cleansing (IC)**: Prevents error accumulation during modulation by filtering unreliable signals using **confidence-aware attention**. Low-confidence regions (often identified through entropy-based uncertainty) are suppressed so they do not contaminate the next iteration.
 
-The model runs for **T = 3 iterations**, and each cycle updates both the predicted mask and the guidance features. This repeated refinement progressively reduces context-driven feature mismatch, leading to more accurate segmentation.
+The model is executed for **T = 3 refinement iterations**, where each iteration updates both the predicted mask and the associated guidance features. Through this repeated update cycle, the method progressively mitigates context-induced feature mismatch, yielding increasingly accurate segmentations.
 
-**Key Idea:** RInstead of trying to learn perfectly background-invariant features (which is difficult and often unrealistic), the method explicitly accounts for how background context distorts representations and then corrects this distortion through iterative refinement. By combining query evolution analysis with confidence-guided denoising, the correction remains both targeted and stable across iterations.
+**Key idea:** Rather than attempting to learn perfectly background-invariant representations—which is often difficult and unrealistic—the approach explicitly models the way background context contaminates feature representations and then compensates for this effect via iterative refinement. By integrating query evolution analysis with confidence-guided denoising, the corrections remain focused and stable from one iteration to the next.
+
 
 ## 1.1. Paper Summary
 
