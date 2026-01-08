@@ -78,9 +78,9 @@ Using $G_s$, the method selects the foreground positions in $f_s$, treats the co
 
 At iteration $t$, the guidance feature set $S_{\text{QP}}^{t}$ is used in conjunction with the query feature map $f_q$ to predict the query mask. Specifically, the prediction logits $P^{t}$ are obtained as:
 
-$$P^{t} = \phi_p\left(\operatorname{CAT}\left(\operatorname{AVG}\left(S_{\text{QP}}^{t}\right), f_q\right)\right)$$
+$$P^{t} = \phi_p\left(\text{CAT}\left(\text{AVG}\left(S_{\text{QP}}^{t}\right), f_q\right)\right)$$
 
-where $\operatorname{AVG}(\cdot)$ denotes the average over all tokens in $S_{\text{QP}}^{t}$, and $\operatorname{CAT}(\cdot)$ denotes concatenation along the channel dimension. The mapping $\phi_p$ is instantiated as two successive $1 \times 1$ convolutional layers that transform the concatenated features into the prediction logits $P^{t}$.
+where $\text{AVG}(\cdot)$ denotes the average over all tokens in $S_{\text{QP}}^{t}$, and $\text{CAT}(\cdot)$ denotes concatenation along the channel dimension. The mapping $\phi_p$ is instantiated as two successive $1 \times 1$ convolutional layers that transform the concatenated features into the prediction logits $P^{t}$.
 
 For subsequent iterations, the guidance feature set is updated using the output of the Information Cleansing module, according to:
 
@@ -514,25 +514,17 @@ To achieve results comparable to the paper and further improve the implementatio
 
 2. **Explore Both Backbones**: Train ResNet-101 backbone to compare with ResNet-50 results and assess whether deeper features improve performance
 
-3. **Address Overfitting**: Investigate regularization techniques (dropout, label smoothing, mixup augmentation, stronger weight decay) to mitigate the observed performance degradation after epochs 21-36
+3. **Early Stopping Strategy**: Implement validation-based early stopping or checkpoint selection to prevent overfitting, as best performance consistently occurs mid-training
 
-4. **Hyperparameter Optimization**: Conduct systematic grid or random search over:
-   - Token limits (support, foreground, background)
-   - Attention configuration (number of heads, hidden dimensions)
-   - Training hyperparameters (batch size, learning rate, warmup)
-   - Data augmentation strength (scale range, crop size)
+4. **Backbone Training Strategy**: Compare frozen vs. trainable backbone approaches to determine optimal transfer learning strategy
 
-5. **Early Stopping Strategy**: Implement validation-based early stopping or checkpoint selection to prevent overfitting, as best performance consistently occurs mid-training
+5. **Learning Rate Schedules**: Experiment with cosine annealing, warmup strategies, or step decay as alternatives to polynomial decay
 
-6. **Backbone Training Strategy**: Compare frozen vs. trainable backbone approaches to determine optimal transfer learning strategy
+6. **Ablation Studies**: Systematically evaluate the contribution of each component (QP, SM, IC) and each iteration to understand which elements provide the most benefit
 
-7. **Learning Rate Schedules**: Experiment with cosine annealing, warmup strategies, or step decay as alternatives to polynomial decay
+7. **Data Preprocessing Analysis**: Verify that mask generation, class splits, and augmentation strategies exactly match the paper's approach
 
-8. **Ablation Studies**: Systematically evaluate the contribution of each component (QP, SM, IC) and each iteration to understand which elements provide the most benefit
-
-9. **Data Preprocessing Analysis**: Verify that mask generation, class splits, and augmentation strategies exactly match the paper's approach
-
-10. **Ensemble Methods**: Explore model ensembling or test-time augmentation to boost performance
+8. **Ensemble Methods**: Explore model ensembling or test-time augmentation to boost performance
 
 ## Conclusion Remarks
 
@@ -549,7 +541,7 @@ This implementation successfully replicates the ABCB architecture with all three
 - **5-shot Advantage**: 5-shot achieves 21.67% best mIoU vs. 13.36% for 1-shot, demonstrating the expected benefit of additional support examples
 - **Learning Dynamics**: Clear learning progression validates architectural correctness
 - **Mid-Training Peak**: Best performance at epochs 21-36, followed by overfitting in later epochs
-- **Qualitative Results**: Visual examples show the model captures general object locations but struggles with precise boundary delineation
+- **Qualitative Results**: Visual examples show the model captures general object locations but struggles with precise boundary delineation. Notably, the model sometimes fails to produce any segmentation mask at all, predicting empty or near-empty outputs for certain examples, indicating instability in the prediction mechanism
 
 **Performance Gap Analysis:**
 The achieved mIoU (21.67% best for 5-shot, 13.36% for 1-shot on single fold) remains below the paper's reported 45.6% mean for 1-shot. Potential factors include:
