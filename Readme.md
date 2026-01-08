@@ -685,7 +685,7 @@ The achieved mIoU (21.67% best for 5-shot, 13.36% for 1-shot on single fold) rem
 - **Hyperparameter Space**: Limited exploration due to computational constraints
 
 **Lessons Learned:**
-The observed training dynamics (steady convergence, 5-shot superiority, mid-training peaks) confirm the implementation is fundamentally sound. The performance gap highlights the importance of fully documented implementation details in research papers and the challenges of reproducing state-of-the-art results without access to original code. The extensive computational requirements (160+ GPU hours for limited experimentation) underscore the need for efficient hyperparameter search methods and the value of computational resources in deep learning research.
+ The training behavior observed—stable convergence, consistently stronger 5-shot performance, and occasional mid-training performance peaks—suggests the implementation is functionally correct. The remaining performance gap emphasizes how critical complete implementation reporting is in research papers, and how difficult it can be to reproduce state-of-the-art results without access to the authors’ code. Finally, the heavy computational cost (over 160 GPU-hours for limited trials) highlights the practical importance of efficient hyperparameter search and the central role of compute availability in modern deep learning research.
 
 ---
 
