@@ -36,7 +36,7 @@ This readme file is an outcome of the [CENG7880 (Fall 2025)](https://metu-trai.g
 
 # 1. Introduction
 
-Few-shot semantic segmentation (FSS) equips neural networks to segment objects from unseen categories using only a small number of annotated examples—commonly 1 or 5 support images paired with masks. This is especially valuable in settings where large-scale labeling is infeasible, including medical imaging, autonomous driving, and robotics. The core difficulty is enabling fast adaptation to new categories while still producing accurate, fine-grained segmentation boundaries under very limited supervision.
+Few-shot semantic segmentation (FSS) considers the setting where a model must generate dense masks for categories not seen during training, using only a small support set—commonly 1-shot or 5-shot annotated image–mask pairs. This formulation is motivated by domains in which large-scale pixel annotation is impractical, including medical imaging, autonomous driving, and robotics. The fundamental difficulty is to infer class-specific cues from minimal supervision while retaining boundary-level accuracy.
 
 ## The Background Context Bias Problem
 
@@ -46,9 +46,10 @@ Most FSS approaches compute prototypes from the foreground regions of the suppor
 
 **Illustrative example:** Suppose a support image contains a dog on grass, while the query image shows a dog on sand at the beach. Even though both contain the same type of foreground object, the extracted “dog” features in the support image may be affected by grass textures and lighting. As a result, those features may not align well with the dog in the beach scene, producing weak activation and segmentation errors.
 
-**Concrete scenario:** A cat appears indoors on carpet in the support set but outdoors on concrete in the query. The indoor cat’s foreground features can be shaped by the surrounding lighting and textures. When transferred to the query image, these features may fail to highlight the outdoor cat because the contextual cues differ, leading to partial masks or even complete failure.
+**Concrete example:** Suppose a cat shown indoors on carpet in the support set but appearing outdoors on concrete in the query image. In the support image, the cat’s foreground representation can become entangled with the surrounding lighting and background textures. When that representation is transferred to the query image, it may no longer align with the outdoor appearance, causing weak activation on the target and resulting in incomplete masks—or, in the worst case, total segmentation failure.
 
-This problem is pervasive in few-shot learning but has been largely overlooked by prior work, which assumes feature extractors can produce context-invariant foreground representations—an assumption that breaks down in practice.
+This issue is widespread in few-shot learning yet is often underemphasized in prior work, which implicitly assumes that the feature extractor yields context-invariant foreground features. In practice, that assumption frequently does not hold.
+
 
 ## The Proposed Solution: Iterative Modulation
 The ABCB approach mitigates background context bias through an **iterative modulation framework** composed of three complementary modules:
@@ -705,39 +706,6 @@ The achieved mIoU (21.67% best for 5-shot, 13.36% for 1-shot on single fold) rem
    Min, J., Kang, D., & Cho, M. (2021). "Hypercorrelation Squeeze for Few-Shot Segmentation." *IEEE/CVF International Conference on Computer Vision (ICCV)*.
 
 6. **PyTorch**: Paszke, A., et al. (2019). "PyTorch: An Imperative Style, High-Performance Deep Learning Library." *Advances in Neural Information Processing Systems (NeurIPS)*.
-
----
-
-## BibTeX
-
-```bibtex
-@inproceedings{lin2014microsoft,
-  title={Microsoft COCO: Common Objects in Context},
-  author={Lin, Tsung-Yi and Maire, Michael and Belongie, Serge and Hays, James and Perona, Pietro and Ramanan, Deva and Doll{\'a}r, Piotr and Zitnick, C Lawrence},
-  booktitle={European Conference on Computer Vision (ECCV)},
-  pages={740--755},
-  year={2014},
-  organization={Springer}
-}
-
-@inproceedings{everingham2010pascal,
-  title={The PASCAL Visual Object Classes (VOC) Challenge},
-  author={Everingham, Mark and Van Gool, Luc and Williams, Christopher KI and Winn, John and Zisserman, Andrew},
-  booktitle={International Journal of Computer Vision},
-  volume={88},
-  number={2},
-  pages={303--338},
-  year={2010}
-}
-
-@inproceedings{min2021hypercorrelation,
-  title={Hypercorrelation Squeeze for Few-Shot Segmentation},
-  author={Min, Juhong and Kang, Dahyun and Cho, Minsu},
-  booktitle={IEEE/CVF International Conference on Computer Vision (ICCV)},
-  pages={6941--6952},
-  year={2021}
-}
-```
 
 ---
 
