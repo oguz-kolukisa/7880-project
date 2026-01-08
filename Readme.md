@@ -643,10 +643,7 @@ Despite completing the full 70 epochs with 20,000 training episodes as specified
 ### 2. **Backbone Adaptation**
 While this implementation keeps the ResNet backbone trainable (assumption not explicitly stated in paper), effective fine-tuning requires many epochs. The frozen vs. trainable backbone decision significantly impacts convergence speed and final performance. The model may need 20-30 epochs just to adapt the backbone features to the few-shot segmentation task.
 
-### 3. **Overfitting in Later Epochs**
-Validation mIoU peaks around epoch 21-36 and does not improve further (or slightly degrades). This suggests overfitting where the model memorizes training patterns rather than learning generalizable features. The paper may employ additional regularization techniques or early stopping strategies not documented in the methodology.
-
-### 6. **Hyperparameter Sensitivity**
+### 3. **Hyperparameter Sensitivity**
 Several hyperparameters may require tuning for optimal performance:
 - Token limits (1024 support, 512 fg, 512 bg) affect feature representation capacity
 - Number of attention heads (4) impacts feature alignment granularity
